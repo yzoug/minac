@@ -1,0 +1,9 @@
+[package]
+name = "minac"
+version = "0.1.0"
+authors = ["yzoug <zoug@protonmail.ch>"]
+edition = "2018"
+
+[dependencies]
+chess = { path = "../chess-yzoug-fork" }
+
