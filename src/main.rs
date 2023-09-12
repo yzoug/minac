@@ -95,6 +95,12 @@ fn get_game_mode() -> u8 {
 
 fn handle_event(event: Event) {
     println!("Event received");
+    match event {
+        Event::Challenge { challenge } => println!("{:?}",challenge),
+        Event::GameStart { game } => println!("{:?}",game),
+        Event::GameFinish { game } => println!("{:?}",game),
+        _ => (),
+    }
 }
 
 async fn stream_event_loop(auth_header: String) -> Result<()> {
