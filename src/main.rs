@@ -3,17 +3,20 @@ use chess::{ChessMove, Game};
 
 extern crate lichess_api;
 use lichess_api::client::LichessApi;
+use lichess_api::error::Result;
 use lichess_api::model::account;
 use lichess_api::model::board;
-use lichess_api::error::Result;
-
+use lichess_api::model::challenges;
 use lichess_api::model::board::stream::events::Event;
-use tokio::time::{sleep, Duration};
+use lichess_api::model::challenges::ChallengeBase;
+use lichess_api::model::games::GameJson;
+
+use reqwest::ClientBuilder;
+use reqwest::Client;
+
 use tokio::spawn;
 
 use futures::stream::StreamExt;
-
-use reqwest::ClientBuilder;
 
 use std::io;
 use std::fs;
@@ -77,12 +80,11 @@ fn offline_game() {
 fn get_game_mode() -> u8 {
 
     println!("minac - minac Is Not A Chessboard
-    -----------------------
+-----------------------
+All moves must be in SAN (Standard Algebraic Notation).
 
-    All moves must be in SAN (Standard Algebraic Notation).
-
-    Choose either offline (0) or online (1) game:
-    > ");
+Choose either offline (0) or online (1) game:
+> ");
 
     let mut choice = String::new();
     io::stdin()
@@ -103,9 +105,7 @@ fn handle_event(event: Event) {
     }
 }
 
-async fn stream_event_loop(auth_header: String) -> Result<()> {
-    let client = ClientBuilder::new().build().unwrap();
-    let api = LichessApi::new(client, Some(auth_header));
+async fn stream_event_loop(api: LichessApi<Client>) -> Result<()> {
     println!("Hello from stream_event_loop");
     let stream_request = board::stream::events::GetRequest::new();
     let mut stream = api.board_stream_incoming_events(stream_request).await?;
@@ -124,23 +124,50 @@ async fn stream_event_loop(auth_header: String) -> Result<()> {
     Ok(())
 }
 
+async fn create_online_bot_game(api: &LichessApi<Client>, level: u32) -> Result<GameJson> {
+    // create a game against a bot
+    let ai_challenge = challenges::AIChallenge {
+        level,
+        base: ChallengeBase {
+            clock_increment: None,
+            clock_limit: None,
+            days: None,
+            fen: None,
+            variant: lichess_api::model::VariantKey::Standard,
+        },
+        color: lichess_api::model::Color::Random,
+    };
+
+    api.challenge_ai(challenges::ai::PostRequest::new(ai_challenge)).await
+}
+
 async fn online_game(token: &str) -> Result<()> {
-    let mut game = Game::new();
-
     let client = ClientBuilder::new().build().unwrap();
-
     let auth_header = String::from(token).trim().to_string();
     let api = LichessApi::new(client, Some(auth_header.clone()));
 
     // seperate runtime for streaming events
-    spawn(stream_event_loop(auth_header.clone()));
+    spawn(stream_event_loop(api.clone()));
 
     // display current profile info
-    let profile_request = account::profile::GetRequest::new();
-    let profile = api.get_profile(profile_request).await?;
+    let profile = api.get_profile(account::profile::GetRequest::new()).await?;
     println!("{:?}", profile);
 
-    // create a game against a bot
+    // create a new game against a bot
+    match create_online_bot_game(&api, 5).await {
+        Ok(jsongame) => println!("Game creation OK: {:?}",jsongame),
+        Err(e) => println!("Game creation ERROR: {e}"),
+    };
+
+    Ok(())
+}
+
+async fn play_online_game() -> Result<()> {
+    let mut game = Game::new();
+
+    // get current gamestart ID
+    // TODO
+
     // while the game is still ongoing
     while game.result().is_none() {
         let current_board = game.current_position();
