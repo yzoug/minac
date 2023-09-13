@@ -95,42 +95,24 @@ fn offline_game() {
     println!("The game is over. Complete PGN for analysis: {}", game);
 }
 
+async fn online_game(api: LichessApi<Client>) -> Result<()> {
+    // create a new game against a bot
+    spawn(setup_bot_game(api.clone()));
 
-
-fn handle_event(event: Event) {
-    println!("Event received");
-    match event {
-        Event::Challenge { challenge } => println!("{:?}",challenge),
-        Event::GameStart { game } => println!("{:?}",game),
-        Event::GameFinish { game } => println!("{:?}",game),
-        _ => (),
-    }
-}
-
-async fn stream_event_loop(api: LichessApi<Client>) -> Result<()> {
-    println!("Hello from stream_event_loop");
-    let stream_request = board::stream::events::GetRequest::new();
-    let mut stream = api.board_stream_incoming_events(stream_request).await?;
-    println!("Spawned stream");
-    while let Some(event) = stream.next().await {
-        match event {
-            Ok(e) => {
-                println!("Event received");
-                handle_event(e);
-            }
-            Err(e) => {
-                println!("Error produced: {e}");
-            }
-        };
-    }
+    // listen to events and join the game when ready
+    stream_events(api).await?;
     Ok(())
 }
 
-async fn create_online_bot_game(api: &LichessApi<Client>, level: u32) -> Result<GameJson> {
+async fn setup_bot_game(api: LichessApi<Client>) {
+    // sleep for a sec, to be sure that the event stream is opened before sending the challenge
+    sleep(Duration::from_secs(1)).await;
+
     // create a game against a bot
+    let level = 5;
     let ai_challenge = challenges::AIChallenge {
         level,
-        base: ChallengeBase {
+        base: challenges::ChallengeBase {
             clock_increment: None,
             clock_limit: None,
             days: None,
@@ -140,61 +122,59 @@ async fn create_online_bot_game(api: &LichessApi<Client>, level: u32) -> Result<
         color: lichess_api::model::Color::Random,
     };
 
-    api.challenge_ai(challenges::ai::PostRequest::new(ai_challenge)).await
-}
-
-async fn online_game(token: &str) -> Result<()> {
-    let client = ClientBuilder::new().build().unwrap();
-    let auth_header = String::from(token).trim().to_string();
-    let api = LichessApi::new(client, Some(auth_header.clone()));
-
-    // seperate runtime for streaming events
-    spawn(stream_event_loop(api.clone()));
-
-    // display current profile info
-    let profile = api.get_profile(account::profile::GetRequest::new()).await?;
-    println!("{:?}", profile);
-
-    // create a new game against a bot
-    match create_online_bot_game(&api, 5).await {
+    // do the POST request
+    match api.challenge_ai(challenges::ai::PostRequest::new(ai_challenge)).await {
         Ok(jsongame) => println!("Game creation OK: {:?}",jsongame),
         Err(e) => println!("Game creation ERROR: {e}"),
-    };
+    }
+}
 
+async fn stream_events(api: LichessApi<Client>) -> Result<()> {
+    let stream_request = board::stream::events::GetRequest::new();
+    let mut stream = api
+        .board_stream_incoming_events(stream_request).await?;
+
+    while let Some(event) = stream.next().await {
+        match event {
+            Ok(e) => handle_event(&api, e).await?,
+            Err(e) => println!("Error in event loop: {e}"),
+        };
+    }
     Ok(())
 }
 
-async fn play_online_game() -> Result<()> {
-    let mut game = Game::new();
+async fn handle_event(api: &LichessApi<Client>, event: events::Event) -> Result<()> {
+    println!("Handling received event...");
+    match event {
+        events::Event::Challenge { challenge } => println!("Challenge: {:?}",challenge),
+        events::Event::GameStart { game } => {
+            println!("Game started: {:?}",game);
+            play(api, game).await?;
+        },
+        events::Event::GameFinish { game } => println!("Game finished: {:?}",game),
+        _ => println!("Unhandled event type"),
+    };
+    Ok(())
+}
 
-    // get current gamestart ID
-    // TODO
+async fn play(api: &LichessApi<Client>, lichess_game: GameEventInfo) -> Result<()> {
+    println!("Playing the game: {}", &lichess_game.game_id);
 
-    // while the game is still ongoing
-    while game.result().is_none() {
-        let current_board = game.current_position();
+    // record the game with the chess crate
+    //let mut game = Game::new();
 
-        println!("{:?} to move. Enter the SAN move (ex: Nf3):", game.side_to_move());
+    let request = board::stream::game::GetRequest::new(&lichess_game.game_id);
+    let mut stream = api
+        .board_stream_board_state(request).await?;
 
-        let mut next_move_str = String::new();
-        io::stdin()
-            .read_line(&mut next_move_str)
-            .expect("IO Eroor: failed to read line");
-
-        // convert the SAN to a valid move
-        // will repeat the loop if the move is not valid
-        let next_move = match ChessMove::from_san(&current_board, &next_move_str) {
-            Ok(m) => m,
-            Err(e) => {
-                println!("{}", e);
-                continue;
-            },
-        };
-
-        // make the move
-        game.make_move(next_move);
-
+    // stream the state of the board
+    while let Some(e) = stream.next().await {
+        // ignore eventual connection errors
+        if let Ok(state) = e {
+            println!("Debug: what do we receive? {:?}", state);
+        }
     }
 
-    Ok(println!("The game is over. Complete PGN for analysis: {}", game))
+    println!("Stream closed");
+    Ok(())
 }
