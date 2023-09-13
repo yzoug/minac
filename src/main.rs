@@ -4,41 +4,60 @@ use chess::{ChessMove, Game};
 extern crate lichess_api;
 use lichess_api::client::LichessApi;
 use lichess_api::error::Result;
-use lichess_api::model::account;
 use lichess_api::model::board;
+use lichess_api::model::board::stream::events::GameEventInfo;
+use lichess_api::model::board::stream::events;
 use lichess_api::model::challenges;
-use lichess_api::model::board::stream::events::Event;
-use lichess_api::model::challenges::ChallengeBase;
-use lichess_api::model::games::GameJson;
 
 use reqwest::ClientBuilder;
 use reqwest::Client;
 
 use tokio::spawn;
+use tokio::time::{sleep, Duration};
 
 use futures::stream::StreamExt;
 
 use std::io;
 use std::fs;
 
+fn get_game_mode() -> u8 {
+
+    println!("minac - minac Is Not A Chessboard
+-----------------------
+All moves must be in SAN (Standard Algebraic Notation).
+
+Choose either offline (0) or online (1) game:
+> ");
+
+    let mut choice = String::new();
+    io::stdin()
+        .read_line(&mut choice)
+        .expect("IO Eroor: failed to read line.");
+
+    choice.trim().parse().expect("Please type a number.")
+
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
+    // get the token, panic if you can't read it
     let token = fs::read_to_string("./token.secret")
-        .expect("Can't read token.secret file: your Lichess token is needed");
+        .expect("Can't read token.secret file: your Lichess token is needed.");
 
-    let result = match get_game_mode() {
-        0 => Ok(offline_game()),
-        1 => online_game(&token).await,
-        _ => Ok({
+    // lichess api and http client creation
+    let client = ClientBuilder::new().build().unwrap();
+    let auth_header = String::from(token).trim().to_string();
+    let api = LichessApi::new(client, Some(auth_header.clone()));
+
+    // main program loop
+    loop {
+        let mode = get_game_mode();
+        if mode == 0 {
+            offline_game();
+        } else if mode == 1 {
+            online_game(api.clone()).await?;
+        } else {
             println!("Option not supported.");
-        })
-    };
-
-    match result {
-        Ok(_) => Ok(println!("Goodbye!")),
-        Err(e) => {
-            println!("An error happenned: {:?}", e);
-            Err(e)
         }
     }
 }
@@ -77,23 +96,6 @@ fn offline_game() {
 }
 
 
-fn get_game_mode() -> u8 {
-
-    println!("minac - minac Is Not A Chessboard
------------------------
-All moves must be in SAN (Standard Algebraic Notation).
-
-Choose either offline (0) or online (1) game:
-> ");
-
-    let mut choice = String::new();
-    io::stdin()
-        .read_line(&mut choice)
-        .expect("IO Eroor: failed to read line");
-
-    choice.trim().parse().expect("Please type a number")
-
-}
 
 fn handle_event(event: Event) {
     println!("Event received");
