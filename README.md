@@ -68,14 +68,21 @@ Feel free to send your enhancements and patches as PRs, or open issues.
 
 Currently working on:
 
-* Online game on Lichess. Objective: play a full game on Lichess using the board:play API through the current commandline interface
-    * Try the token with curl: `curl https://lichess.org/api/account -H "Authorization: Bearer {token}"`
-    * board:play primarily: [doc](https://lichess.org/api#tag/Board)
+* Handling of game aborts, draws etc.
+* Small analysis (what the lichess API sends) at end of game
+
+Starting to thinker about:
+
+* 3D case design
+* Compiling for Raspberry Pi Zero
 
 ## About me
 
 Lichess: @zoug
+
 Mastodon: @zoug@infosec.exchange
+
 Github: yzoug
+
 https://zoug.top
 
