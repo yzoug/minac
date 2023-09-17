@@ -7,6 +7,7 @@ use lichess_api::error::Result;
 use lichess_api::model::Color;
 use lichess_api::model::board;
 use lichess_api::model::board::stream::events;
+use lichess_api::model::board::stream::events::GameEventInfo;
 use lichess_api::model::board::stream::game;
 use lichess_api::model::challenges;
 
@@ -14,6 +15,7 @@ use reqwest::ClientBuilder;
 use reqwest::Client;
 
 use tokio::spawn;
+use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 
 use futures::stream::StreamExt;
@@ -42,14 +44,6 @@ Choose either offline (0) or online (1) game:
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // get the token, panic if you can't read it
-    let token = fs::read_to_string("./token.secret")
-        .expect("Can't read token.secret file: your Lichess token is needed.");
-
-    // lichess api and http client creation
-    let client = ClientBuilder::new().build().unwrap();
-    let auth_header = String::from(token).trim().to_string();
-    let api = LichessApi::new(client, Some(auth_header.clone()));
 
     // main program loop
     loop {
@@ -57,7 +51,7 @@ async fn main() -> Result<()> {
         if mode == 0 {
             offline_game();
         } else if mode == 1 {
-            online_game(api.clone()).await?;
+            online_game().await?;
         } else {
             println!("Option not supported.");
         }
@@ -74,10 +68,7 @@ fn offline_game() {
 
         println!("{:?} to move. Enter the SAN move (ex: Nf3):", game.side_to_move());
 
-        let mut next_move_str = String::new();
-        io::stdin()
-            .read_line(&mut next_move_str)
-            .expect("IO Eroor: failed to read line");
+        let next_move_str = ask_for_move();
 
         // convert the SAN to a valid move
         // will repeat the loop if the move is not valid
@@ -97,21 +88,76 @@ fn offline_game() {
     println!("The game is over. Complete PGN for analysis: {}", game);
 }
 
-async fn online_game(api: LichessApi<Client>) -> Result<()> {
-    // create a new game against a bot
-    spawn(setup_bot_game(api.clone()));
+enum Command {
+    CreateBotGame {
+        bot_game: challenges::ai::PostRequest,
+    },
+    GameStart {
+        game: GameEventInfo,
+    },
+    GameOver,
+}
 
-    // listen to events and join the game when ready
-    stream_events(api).await?;
+enum PlayCommand {
+    MakeMove {
+        chess_move: String,
+    },
+    OpponentMove {
+        chess_move: chess::ChessMove,
+    },
+    Resign,
+    OfferDraw,
+    OpponentGone,
+}
+
+async fn online_game() -> Result<()> {
+    // get the token, panic if you can't read it
+    let token = fs::read_to_string("./token.secret")
+        .expect("Can't read token.secret file: your Lichess token is needed.");
+
+    // lichess api and http client creation
+    let client = ClientBuilder::new().build().unwrap();
+    let auth_header = String::from(token).trim().to_string();
+    let api = LichessApi::new(client, Some(auth_header));
+
+    // mpsc channel for tasks to send commands
+    let (tx, mut rx) = mpsc::channel(10);
+
+    // create a new game against a bot
+    spawn(setup_bot_game(tx.clone()));
+
+    // handle received events, send message here when game ready to play
+    spawn(stream_events(api.clone(), tx.clone()));
+
+    // handle all events here
+    // let tasks = xxx
+    // stop all tasks when GameOver received
+    while let Some(cmd) = rx.recv().await {
+        match cmd {
+            Command::CreateBotGame { bot_game } => {
+                api.challenge_ai(bot_game).await?;
+            },
+            Command::GameStart { game } => {
+                // this task will handle playing the current game
+                // needs to be killed when gameover command is received
+                spawn(play(api.clone(), game));
+            },
+            Command::GameOver => {
+                println!("Game over!");
+                // kill all tasks
+            }
+        }
+    }
+
     Ok(())
 }
 
-async fn setup_bot_game(api: LichessApi<Client>) {
+async fn setup_bot_game(tx: mpsc::Sender<Command>) {
     // sleep for a sec, to be sure that the event stream is opened before sending the challenge
     sleep(Duration::from_secs(1)).await;
 
     // create a game against a bot
-    let level = 5;
+    let level = 1;
     let ai_challenge = challenges::AIChallenge {
         level,
         base: challenges::ChallengeBase {
@@ -121,17 +167,21 @@ async fn setup_bot_game(api: LichessApi<Client>) {
             fen: None,
             variant: lichess_api::model::VariantKey::Standard,
         },
-        color: lichess_api::model::Color::Random,
+        color: lichess_api::model::Color::White,
     };
 
     // do the POST request
-    match api.challenge_ai(challenges::ai::PostRequest::new(ai_challenge)).await {
-        Ok(jsongame) => println!("Game creation OK: {:?}",jsongame),
-        Err(e) => println!("Game creation ERROR: {e}"),
-    }
+    let lichess_api_request = Command::CreateBotGame {
+        bot_game: challenges::ai::PostRequest::new(ai_challenge),
+    };
+    match tx.send(lichess_api_request).await {
+        Ok(_) => println!("Setup bot game: message sent successfully to main runtine"),
+        Err(e) => println!("Setup bot game: can't send message: {e}"),
+    };
+
 }
 
-async fn stream_events(api: LichessApi<Client>) -> Result<()> {
+async fn stream_events(api: LichessApi<Client>, tx: mpsc::Sender<Command>) -> Result<()> {
     let stream_request = board::stream::events::GetRequest::new();
     let mut stream = api
         .board_stream_incoming_events(stream_request).await?;
@@ -142,10 +192,14 @@ async fn stream_events(api: LichessApi<Client>) -> Result<()> {
                 match ev {
                     events::Event::GameStart { game } => {
                         println!("Game started: {:?}",game);
-                        play(&api, game).await?;
+                        let command = Command::GameStart {
+                            game: game,
+                        };
+                        tx.send(command).await.unwrap();
                     },
                     events::Event::GameFinish { game } => {
                         println!("Game finished: {:?}",game);
+                        tx.send(Command::GameOver).await.unwrap();
                         break;
                     }
                     _ => println!("Unhandled event type"),
@@ -154,10 +208,65 @@ async fn stream_events(api: LichessApi<Client>) -> Result<()> {
             Err(e) => println!("Error in event loop: {e}"),
         };
     }
+    println!("Goodbye from stream_events");
     Ok(())
 }
 
-async fn play(api: &LichessApi<Client>, lichess_game: events::GameEventInfo) -> Result<()> {
+async fn stream_current_game(
+    api: LichessApi<Client>,
+    tx: mpsc::Sender<PlayCommand>,
+    lichess_game: events::GameEventInfo
+) -> Result<()> {
+
+    // stream the state of the board
+    let request = board::stream::game::GetRequest::new(&lichess_game.game_id);
+    let mut stream = api
+        .board_stream_board_state(request).await?;
+
+    // handle the game states
+    while let Some(event) = stream.next().await {
+        match event {
+            Ok(ev) => {
+                match ev {
+                    game::Event::GameState { game_state } => {
+                        // is it my turn?
+                        let my_color = &lichess_game.color;
+                        // move 1 is white, so n mod 2 gives 1 when it's black's turn, 0 for white's turn
+                        let current_color = match game_state.moves.split_whitespace().count() % 2 {
+                            1 => {
+                                &Color::Black
+                            },
+                            0 => {
+                                &Color::White
+                            },
+                            _ => {
+                                panic!("Math has been broken.");
+                            }
+                        };
+
+                        // we only handle the game state if it is our turn
+                        if current_color == my_color {
+                            println!("Handling game state {:?}: my turn", game_state);
+                            handle_current_game_state(
+                                tx.clone(),
+                                Some(game_state),
+                            ).await;
+                        } else {
+                            println!("Ignoring game state {:?}: not my turn", game_state);
+                        }
+                    },
+                    _ => println!("Unhandled event type"),
+                };
+            },
+            Err(e) => println!("Error in event loop of current game: {e}"),
+        };
+    }
+    println!("Goodbye from stream_current_game");
+    Ok(())
+
+}
+
+async fn play(api: LichessApi<Client>, lichess_game: events::GameEventInfo) -> Result<()> {
     println!("Playing the game: {:?}", &lichess_game);
 
     // record the game with the chess crate
@@ -165,61 +274,75 @@ async fn play(api: &LichessApi<Client>, lichess_game: events::GameEventInfo) -> 
         .expect("The received starting position from Lichess is invalid");
     let mut game = Game::new_with_board(starting_pos);
 
-    // board state stream
-    let request = board::stream::game::GetRequest::new(&lichess_game.game_id);
-    let mut stream = api
-        .board_stream_board_state(request).await?;
+    // channel to receive play commands from board state
+    let (tx, mut rx) = mpsc::channel(10);
+    spawn(stream_current_game(api.clone(), tx.clone(), lichess_game.clone()));
 
-    // if we are white, we first need to input a move before any GameState is received
+    // if we are white, we first need to input a move before any GameState is received by stream_current_game
     match &lichess_game.color {
         Color::White => {
-            println!("We are white. Send first fake event to prompt asking for a move.");
-            // we fake an event to call our event handling function for the first move
-            let fake_first_game_state = game::GameState {
-                r#type: None,
-                moves: "".to_string(),
-                wtime: 0,
-                btime: 0,
-                winc: 0,
-                binc: 0,
-                status: "".to_string(),
-                winner: None,
-                wdraw: None,
-                bdraw: None,
-                wtakeback: None,
-                btakeback: None,
-            };
-            let fake_first_game_state_event = game::Event::GameState {
-                game_state: fake_first_game_state
-            };
+            println!("We are white. Prompt asking for a move.");
             handle_current_game_state(
-                api,
-                &lichess_game.game_id,
-                fake_first_game_state_event,
-                &mut game,
-                &lichess_game.color
+                tx.clone(),
+                None,
             ).await;
         },
         _ => (),
     };
 
-    // stream the state of the board
-    while let Some(e) = stream.next().await {
-        let mut finished: bool = false;
-        // ignore eventual connection errors
-        if let Ok(game_state) = e {
-            println!("Debug game event: {:?}", game_state);
-            finished = handle_current_game_state(
-                api,
-                &lichess_game.game_id,
-                game_state,
-                &mut game,
-                &lichess_game.color
-            ).await;
-        }
-        if finished {
-            println!("Game is finished.");
-            break;
+    while let Some(cmd) = rx.recv().await {
+        match cmd {
+            PlayCommand::MakeMove { chess_move } => {
+                let game_chess_move = ChessMove::from_san(
+                    &game.current_position(),
+                    chess_move.as_str()
+                );
+
+                // if the move is valid
+                if game_chess_move.is_ok() {
+                    println!("Valid move, sending to Lichess.");
+                    let valid_move = game_chess_move.unwrap();
+
+                    // make it in our copy
+                    game.make_move(valid_move.clone());
+
+                    let uci_move = format!("{}{}", valid_move.get_source(), valid_move.get_dest());
+
+                    println!("Sending following move: {uci_move}");
+
+                    // send it to lichess in UCI format
+                    let request = board::r#move::PostRequest::new(
+                            &lichess_game.game_id,
+                            &uci_move,
+                            false,
+                    );
+                    api.board_make_move(request).await?;
+                } else {
+                    println!("The move you entered is not valid. Try again.");
+                    handle_current_game_state(
+                        tx.clone(),
+                        None,
+                    ).await;
+                }
+
+            },
+            PlayCommand::OpponentMove { chess_move } => {
+                // only update our game copy
+                // supplied by the API: should be valid, we don't check
+                game.make_move(chess_move);
+            },
+            PlayCommand::OfferDraw => {
+                println!("Offering draw TODO");
+                break;
+            },
+            PlayCommand::Resign => {
+                println!("Resigning TODO");
+                break;
+            },
+            PlayCommand::OpponentGone => {
+                println!("Opponent gone TODO");
+                break;
+            }
         }
     }
 
@@ -227,102 +350,58 @@ async fn play(api: &LichessApi<Client>, lichess_game: events::GameEventInfo) -> 
     Ok(())
 }
 
-async fn handle_current_game_state(api: &LichessApi<Client>,
-    game_id: &str,
-    game_state: game::Event,
-    game: &mut chess::Game,
-    my_color: &Color,
-) -> bool {
-    let color_in_recorded_game: Color = match game.side_to_move() {
-        chess::Color::Black => Color::Black,
-        chess::Color::White => Color::White,
-    };
+fn ask_for_move() -> String {
+    println!("\nYour turn. Enter the SAN move (ex: Nf3):");
+    print!(">>> ");
+    let mut next_move = String::new();
+    io::stdin()
+        .read_line(&mut next_move)
+        .expect("IO Eroor: failed to read line");
 
-    // used to retry an input if wrong move supplied by user
-    let mut currently_inputting_move = false;
+    next_move
+}
+
+async fn handle_current_game_state(
+    tx: mpsc::Sender<PlayCommand>,
+    game_state: Option<game::GameState>,
+) {
 
     match game_state {
-        game::Event::OpponentGone { opponent_gone } => {
-            println!("Opponent gone: {:?}", opponent_gone);
-            true
-        },
-        game::Event::GameState { game_state } => {
+        None => {
+            println!("No last move supplied: either first move, or wrong move input.");
+            tx.send(PlayCommand::MakeMove { chess_move: ask_for_move() }).await.unwrap();
+        }
+        Some(game_state) => {
+            // we only receive game states when it is our turn (i.e. event made by opponent)
+
             // if a winner exists, stop here
             if game_state.winner.is_some() {
-                return true;
-            }
-            // loop until valid move supplied
-            loop {
-                // play an opponent's move in our copy first
-                if my_color != &color_in_recorded_game && !currently_inputting_move {
-                    // extract the last move, UCI format (ie. source square + dest square, eg. "e2e4")
-                    if let Some(last_move) = game_state.moves.split_whitespace().last() {
-                        println!("Last move (UCI notation): {}", last_move);
-
-                        // update our recorded game
-                        let (source_str_sq, dest_str_sq) = last_move.split_at(2);
-                        let source_sq = chess::Square::from_str(source_str_sq).unwrap();
-                        let dest_sq = chess::Square::from_str(dest_str_sq).unwrap();
-                        // TODO handle promotions
-                        let current_move = ChessMove::new(source_sq, dest_sq, None);
-
-                        // try to make the move
-                        if !game.make_move(current_move) {
-                            // if the f'n returns false, ignore current event: it was our own move
-                            println!("The move {:?} is invalid: we probably made this move ourselves.", current_move);
-                            return false;
-                        } else {
-                            println!("Played the opponent's move in our game copy.");
-                        }
-                    } else {
-                        panic!("Should never happen: not my turn, and can't get last move from GameState.");
-                    }
-                }
-
-                // at this point, we did the move of the opponent in our game copy and we can play
-                println!("Current game copy: {:?}.\nYour turn. Enter the SAN move (ex: Nf3):", &game);
-                currently_inputting_move = true;
-
-                let mut next_move_str = String::new();
-                io::stdin()
-                    .read_line(&mut next_move_str)
-                    .expect("IO Eroor: failed to read line");
-
-                // convert the SAN to a valid move
-                let next_move = match ChessMove::from_san(&game.current_position(), &next_move_str) {
-                    Ok(m) => m,
-                    Err(e) => {
-                        println!("Problem with the chess move, try again. Error: {}", e);
-                        continue;
-                    },
-                };
-                // make the move in our game copy
-                game.make_move(next_move);
-
-                // send the move to the lichess API
-                match api.board_make_move(board::r#move::PostRequest::new(
-                    game_id,
-                    format!("{}{}", next_move.get_source(), next_move.get_dest()).as_str(),
-                    false
-                )).await {
-                    Ok(_) => (),
-                    Err(e) => println!("Error while sending the move to Lichess: {e}"),
-                };
-                break;
-
+                return;
             }
 
-            // return true if an end result has been reached
-            println!("Current game status: {}", game.result().is_some());
-            game.result().is_some()
-        },
-        game::Event::GameFull { game_full } => {
-            println!("Game full received, handle first move: {:?}", game_full);
-            false
-        },
-        _ => {
-            println!("Unhandled game event. Breaking out.");
-            true
+            // extract the last move from the game state and send it to play f'n
+            // UCI format (ie. source square + dest square, eg. "e2e4")
+            if let Some(last_move) = game_state.moves.split_whitespace().last() {
+                println!("Last move (UCI notation): {}", last_move);
+                let (source_str_sq, dest_str_sq) = last_move.split_at(2);
+                let source_sq = chess::Square::from_str(source_str_sq).unwrap();
+                let dest_sq = chess::Square::from_str(dest_str_sq).unwrap();
+
+                let opponent_move = PlayCommand::OpponentMove {
+                    chess_move: ChessMove::new(source_sq, dest_sq, None),
+                };
+                tx.send(opponent_move).await.unwrap();
+
+                // now that we have the opponent's move, prompt for ours
+                let move_input = ask_for_move();
+                let make_move = PlayCommand::MakeMove {
+                    chess_move: move_input,
+                };
+                tx.send(make_move).await.unwrap();
+
+            } else {
+                panic!("Should never happen: can't extract move from GameState.\nMoves: {}", game_state.moves);
+            }
         },
     }
 }
