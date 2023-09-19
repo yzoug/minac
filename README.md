@@ -68,13 +68,14 @@ Feel free to send your enhancements and patches as PRs, or open issues.
 
 Currently working on:
 
-* Handling of game aborts, draws etc.
 * Small analysis (what the lichess API sends) at end of game
+* Compiling for my Raspberry Pi Zero: the target is either arm-unknown-linux-gnueabihf or arm-unknown-linux-gnueabi
+* the embedded hello world: blink a LED with Rust
+* Display the voltage received by a GPIO pin
 
 Starting to thinker about:
 
-* 3D case design
-* Compiling for Raspberry Pi Zero
+* 3D case design with Blender
 
 ## About me
 
