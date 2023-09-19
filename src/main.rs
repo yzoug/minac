@@ -102,12 +102,12 @@ enum Command {
 enum PlayCommand {
     MakeMove {
         chess_move: String,
+        draw: bool,
     },
     OpponentMove {
         chess_move: chess::ChessMove,
     },
     Resign,
-    OfferDraw,
     OpponentGone,
 }
 
@@ -259,6 +259,11 @@ async fn stream_current_game(
                             println!("Ignoring game state {:?}: not my turn", game_state);
                         }
                     },
+                    game::Event::OpponentGone { opponent_gone: _ } => {
+                        // send msg to play f'n to close all current tasks, and break out of the loop
+                        tx.send(PlayCommand::OpponentGone).await.unwrap();
+                        break;
+                    }
                     _ => println!("Unhandled event type"),
                 };
             },
@@ -297,7 +302,7 @@ async fn play(api: LichessApi<Client>, lichess_game: events::GameEventInfo) -> R
 
     while let Some(cmd) = rx.recv().await {
         match cmd {
-            PlayCommand::MakeMove { chess_move } => {
+            PlayCommand::MakeMove { chess_move, draw } => {
                 let game_chess_move = ChessMove::from_san(
                     &game.current_position(),
                     chess_move.as_str()
@@ -312,15 +317,17 @@ async fn play(api: LichessApi<Client>, lichess_game: events::GameEventInfo) -> R
 
                     let uci_move = format!("{}{}", valid_move.get_source(), valid_move.get_dest());
 
-                    println!("Sending following move: {uci_move}");
+                    println!("Sending following move to Lichess: {uci_move}");
 
                     // send it to lichess in UCI format
                     let request = board::r#move::PostRequest::new(
                             &lichess_game.game_id,
                             &uci_move,
-                            false,
+                            draw
                     );
                     api.board_make_move(request).await?;
+                    println!("Game progression: {}", game);
+
                 } else {
                     println!("The move you entered is not valid. Try again.");
                     handle_current_game_state(
@@ -332,19 +339,17 @@ async fn play(api: LichessApi<Client>, lichess_game: events::GameEventInfo) -> R
             },
             PlayCommand::OpponentMove { chess_move } => {
                 // only update our game copy
-                // supplied by the API: should be valid, we don't check
+                // move supplied by the API: should be valid, we don't check
                 game.make_move(chess_move);
             },
-            PlayCommand::OfferDraw => {
-                println!("Offering draw TODO");
-                break;
-            },
             PlayCommand::Resign => {
-                println!("Resigning TODO");
+                println!("Resigning.");
+                let request = board::resign::PostRequest::new(&lichess_game.game_id);
+                api.board_resign_game(request).await?;
                 break;
             },
             PlayCommand::OpponentGone => {
-                println!("Opponent gone TODO");
+                println!("Opponent gone.");
                 break;
             }
         }
@@ -355,14 +360,16 @@ async fn play(api: LichessApi<Client>, lichess_game: events::GameEventInfo) -> R
 }
 
 fn ask_for_move() -> String {
-    println!("\nYour turn. Enter the SAN move (ex: Nf3):");
+    println!("\nYour turn. Enter the SAN move. Example: Nf3");
+    println!("To offer a draw, enter your next move and DRAW at the end. Example: Qxf5DRAW");
+    println!("To resign, enter RESIGN");
     print!(">>> ");
     let mut next_move = String::new();
     io::stdin()
         .read_line(&mut next_move)
         .expect("IO Eroor: failed to read line");
 
-    next_move
+    next_move.trim().to_string()
 }
 
 async fn handle_current_game_state(
@@ -373,7 +380,14 @@ async fn handle_current_game_state(
     match game_state {
         None => {
             println!("No last move supplied: either first move, or wrong move input.");
-            tx.send(PlayCommand::MakeMove { chess_move: ask_for_move() }).await.unwrap();
+            let mut draw = false;
+            let mut chess_move = ask_for_move();
+            if chess_move.ends_with("DRAW") {
+                println!("Will ask for draw.");
+                draw = true;
+                chess_move = chess_move.replace("DRAW", "");
+            }
+            tx.send(PlayCommand::MakeMove { chess_move, draw }).await.unwrap();
         }
         Some(game_state) => {
             // we only receive game states when it is our turn (i.e. event made by opponent)
@@ -397,9 +411,20 @@ async fn handle_current_game_state(
                 tx.send(opponent_move).await.unwrap();
 
                 // now that we have the opponent's move, prompt for ours
-                let move_input = ask_for_move();
+                let mut move_input = ask_for_move();
+                // handle offering draw and resigning
+                let mut draw = false;
+                if move_input.ends_with("DRAW") {
+                    println!("Will ask for draw.");
+                    draw = true;
+                    move_input = move_input.replace("DRAW", "");
+                } else if move_input == "RESIGN" {
+                    tx.send(PlayCommand::Resign).await.unwrap();
+                }
+
                 let make_move = PlayCommand::MakeMove {
                     chess_move: move_input,
+                    draw: draw,
                 };
                 tx.send(make_move).await.unwrap();
 
