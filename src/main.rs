@@ -16,6 +16,7 @@ use reqwest::Client;
 
 use tokio::spawn;
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
 
 use futures::stream::StreamExt;
@@ -127,24 +128,27 @@ async fn online_game() -> Result<()> {
     spawn(setup_bot_game(tx.clone()));
 
     // handle received events, send message here when game ready to play
-    spawn(stream_events(api.clone(), tx.clone()));
+    let stream_events_handle = spawn(stream_events(api.clone(), tx.clone()));
+    let mut currently_playing: Option<JoinHandle<Result<()>>> = None;
 
-    // handle all events here
-    // let tasks = xxx
-    // stop all tasks when GameOver received
     while let Some(cmd) = rx.recv().await {
         match cmd {
             Command::CreateBotGame { bot_game } => {
                 api.challenge_ai(bot_game).await?;
             },
             Command::GameStart { game } => {
-                // this task will handle playing the current game
-                // needs to be killed when gameover command is received
-                spawn(play(api.clone(), game));
+                if currently_playing.is_some() {
+                    currently_playing.unwrap().abort();
+                }
+                currently_playing = Some(spawn(play(api.clone(), game)));
             },
             Command::GameOver => {
                 println!("Game over!");
-                // kill all tasks
+                if currently_playing.is_some() {
+                    currently_playing.unwrap().abort();
+                }
+                stream_events_handle.abort();
+                break;
             }
         }
     }
@@ -276,6 +280,7 @@ async fn play(api: LichessApi<Client>, lichess_game: events::GameEventInfo) -> R
 
     // channel to receive play commands from board state
     let (tx, mut rx) = mpsc::channel(10);
+    // handle current game stream. Connection will be closed when game is over
     spawn(stream_current_game(api.clone(), tx.clone(), lichess_game.clone()));
 
     // if we are white, we first need to input a move before any GameState is received by stream_current_game
@@ -300,7 +305,6 @@ async fn play(api: LichessApi<Client>, lichess_game: events::GameEventInfo) -> R
 
                 // if the move is valid
                 if game_chess_move.is_ok() {
-                    println!("Valid move, sending to Lichess.");
                     let valid_move = game_chess_move.unwrap();
 
                     // make it in our copy
