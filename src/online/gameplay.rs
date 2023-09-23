@@ -82,10 +82,22 @@ pub(crate) async fn stream_current_game(
         match event {
             Ok(ev) => {
                 match ev {
+                    game::Event::GameFull { game_full } => {
+                        // first event received when opening the stream
+                        // if we are black, only sent after white's first move
+                        println!("GameFull: {:?}", game_full);
+                        if &lichess_game.color == &Color::Black {
+                            // only handle the first game state if we are black
+                            handle_current_game_state(
+                                tx.clone(),
+                                game_full.state,
+                            ).await;
+                        }
+                    },
                     game::Event::GameState { game_state } => {
                         // is it my turn?
                         let my_color = &lichess_game.color;
-                        // move 1 is white, so n mod 2 gives 1 when it's black's turn, 0 for white's turn
+                        // first move is white, so n mod 2 gives 1 when it's black's turn, 0 for white's turn
                         let current_color = match game_state.moves.split_whitespace().count() % 2 {
                             1 => {
                                 &Color::Black
