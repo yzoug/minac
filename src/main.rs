@@ -1,5 +1,7 @@
 extern crate chess;
 extern crate lichess_api;
+#[macro_use]
+extern crate log;
 
 mod offline;
 mod online;
@@ -9,8 +11,14 @@ use crate::utils::*;
 
 use lichess_api::error::Result;
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[tokio::main]
 async fn main() -> Result<()> {
+
+    env_logger::init();
+
+    info!("minac v{}", VERSION);
 
     // main program loop
     loop {

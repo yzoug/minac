@@ -33,8 +33,8 @@ pub(crate) async fn setup_bot_game(tx: mpsc::Sender<Command>) {
         bot_game: challenges::ai::PostRequest::new(ai_challenge),
     };
     match tx.send(lichess_api_request).await {
-        Ok(_) => println!("Setup bot game: message sent successfully to main runtine"),
-        Err(e) => println!("Setup bot game: can't send message: {e}"),
+        Ok(_) => debug!("Setup bot game: message sent successfully to main runtine"),
+        Err(e) => error!("Setup bot game: can't send message: {e}"),
     };
 
 }
@@ -49,23 +49,23 @@ pub(crate) async fn stream_events(api: LichessApi<Client>, tx: mpsc::Sender<Comm
             Ok(ev) => {
                 match ev {
                     events::Event::GameStart { game } => {
-                        println!("Game started: {:?}",game);
+                        info!("Game started: {:#?}",game);
                         let command = Command::GameStart {
                             game: game,
                         };
                         tx.send(command).await.unwrap();
                     },
                     events::Event::GameFinish { game } => {
-                        println!("Game finished: {:?}",game);
+                        info!("Game finished: {:#?}",game);
                         tx.send(Command::GameOver).await.unwrap();
                         break;
                     }
-                    _ => println!("Unhandled event type"),
+                    _ => debug!("Unhandled event type"),
                 };
             },
-            Err(e) => println!("Error in event loop: {e}"),
+            Err(e) => error!("Error in event loop: {e}"),
         };
     }
-    println!("Goodbye from stream_events");
+    debug!("Goodbye from stream_events");
     Ok(())
 }

@@ -15,6 +15,7 @@ use reqwest::ClientBuilder;
 use reqwest::Client;
 use tokio::spawn;
 use tokio::sync::mpsc;
+use tokio::time::{sleep, Duration};
 use tokio::task::JoinHandle;
 use futures::stream::StreamExt;
 
@@ -53,7 +54,7 @@ pub(crate) async fn online_game() -> Result<()> {
                 currently_playing = Some(spawn(play(api.clone(), game)));
             },
             Command::GameOver => {
-                println!("Game over!");
+                println!("<<< Game over! >>>\n");
                 if currently_playing.is_some() {
                     currently_playing.unwrap().abort();
                 }
@@ -85,13 +86,16 @@ pub(crate) async fn stream_current_game(
                     game::Event::GameFull { game_full } => {
                         // first event received when opening the stream
                         // if we are black, only sent after white's first move
-                        println!("GameFull: {:?}", game_full);
+                        debug!("First event GameFull:\n{:#?}", game_full);
                         if &lichess_game.color == &Color::Black {
+                            println!("You are black. Waiting for opponent's move...");
                             // only handle the first game state if we are black
                             handle_current_game_state(
                                 tx.clone(),
                                 game_full.state,
                             ).await;
+                        } else {
+                            println!("You are white.");
                         }
                     },
                     game::Event::GameState { game_state } => {
@@ -112,13 +116,13 @@ pub(crate) async fn stream_current_game(
 
                         // we only handle the game state if it is our turn
                         if current_color == my_color {
-                            println!("Handling game state {:?}: my turn", game_state);
+                            debug!("Handling game state {:#?}: my turn", game_state);
                             handle_current_game_state(
                                 tx.clone(),
                                 Some(game_state),
                             ).await;
                         } else {
-                            println!("Ignoring game state {:?}: not my turn", game_state);
+                            debug!("Ignoring game state {:#?}: not my turn", game_state);
                         }
                     },
                     game::Event::OpponentGone { opponent_gone: _ } => {
@@ -126,19 +130,22 @@ pub(crate) async fn stream_current_game(
                         tx.send(PlayCommand::OpponentGone).await.unwrap();
                         break;
                     }
-                    _ => println!("Unhandled event type"),
+                    _ => error!("Unhandled event type"),
                 };
             },
-            Err(e) => println!("Error in event loop of current game: {e}"),
+            Err(e) => error!("Error in event loop of current game: {e}"),
         };
     }
-    println!("Goodbye from stream_current_game");
+    debug!("Goodbye from stream_current_game");
     Ok(())
 
 }
 
 pub(crate) async fn play(api: LichessApi<Client>, lichess_game: events::GameEventInfo) -> Result<()> {
-    println!("Playing the game: {:?}", &lichess_game);
+    debug!("Playing the game: {:#?}", &lichess_game);
+
+    println!("To offer a draw, enter your next move and DRAW at the end. Example: Qxf5DRAW");
+    println!("To resign, enter RESIGN\n");
 
     // record the game with the chess crate
     let starting_pos = Board::from_str(&lichess_game.fen)
@@ -153,7 +160,7 @@ pub(crate) async fn play(api: LichessApi<Client>, lichess_game: events::GameEven
     // if we are white, we first need to input a move before any GameState is received by stream_current_game
     match &lichess_game.color {
         Color::White => {
-            println!("We are white. Prompt asking for a move.");
+            debug!("We are white. Prompt asking for a move.");
             handle_current_game_state(
                 tx.clone(),
                 None,
@@ -179,7 +186,7 @@ pub(crate) async fn play(api: LichessApi<Client>, lichess_game: events::GameEven
 
                     let uci_move = format!("{}{}", valid_move.get_source(), valid_move.get_dest());
 
-                    println!("Sending following move to Lichess: {uci_move}");
+                    info!("Sending following move to Lichess: {uci_move}");
 
                     // send it to lichess in UCI format
                     let request = board::r#move::PostRequest::new(
@@ -188,7 +195,7 @@ pub(crate) async fn play(api: LichessApi<Client>, lichess_game: events::GameEven
                             draw
                     );
                     api.board_make_move(request).await?;
-                    println!("Game progression: {}", game);
+                    info!("Game progression: {}", game);
 
                 } else {
                     println!("The move you entered is not valid. Try again.");
@@ -202,6 +209,7 @@ pub(crate) async fn play(api: LichessApi<Client>, lichess_game: events::GameEven
             PlayCommand::OpponentMove { chess_move } => {
                 // only update our game copy
                 // move supplied by the API: should be valid, we don't check
+                println!("Opponent played: {}", chess_move);
                 game.make_move(chess_move);
             },
             PlayCommand::Resign => {
@@ -217,7 +225,7 @@ pub(crate) async fn play(api: LichessApi<Client>, lichess_game: events::GameEven
         }
     }
 
-    println!("Stream of the played match closed.");
+    info!("Stream of the played match closed.");
     Ok(())
 }
 
@@ -228,8 +236,10 @@ pub(crate) async fn handle_current_game_state(
 
     match game_state {
         None => {
-            println!("No last move supplied: either first move, or wrong move input.");
+            info!("No last move supplied: either first move, or wrong move input.");
             let mut draw = false;
+            // wait for a bit before grabbing stdin, to let all stdout msg appear
+            sleep(Duration::from_secs(1)).await;
             let mut chess_move = ask_for_move();
             if chess_move.ends_with("DRAW") {
                 println!("Will ask for draw.");
@@ -249,10 +259,11 @@ pub(crate) async fn handle_current_game_state(
             // extract the last move from the game state and send it to play f'n
             // UCI format (ie. source square + dest square, eg. "e2e4")
             if let Some(last_move) = game_state.moves.split_whitespace().last() {
-                println!("Last move (UCI notation): {}", last_move);
                 let (source_str_sq, dest_str_sq) = last_move.split_at(2);
                 let source_sq = chess::Square::from_str(source_str_sq).unwrap();
                 let dest_sq = chess::Square::from_str(dest_str_sq).unwrap();
+
+                info!("Last move played (UCI notation): {} to {}", source_str_sq, dest_str_sq);
 
                 let opponent_move = PlayCommand::OpponentMove {
                     chess_move: ChessMove::new(source_sq, dest_sq, None),
@@ -260,6 +271,8 @@ pub(crate) async fn handle_current_game_state(
                 tx.send(opponent_move).await.unwrap();
 
                 // now that we have the opponent's move, prompt for ours
+                // wait for a bit before grabbing stdin, to let all stdout msg appear
+                sleep(Duration::from_secs(1)).await;
                 let mut move_input = ask_for_move();
                 // handle offering draw and resigning
                 let mut draw = false;
