@@ -171,11 +171,19 @@ pub(crate) async fn play(api: LichessApi<Client>, lichess_game: events::GameEven
 
     while let Some(cmd) = rx.recv().await {
         match cmd {
-            PlayCommand::MakeMove { chess_move, draw } => {
+            PlayCommand::MakeMove { chess_move, option } => {
+                let current_position = game.current_position();
                 let game_chess_move = ChessMove::from_san(
-                    &game.current_position(),
+                    &current_position,
                     chess_move.as_str()
                 );
+                
+                let mut draw = false;
+                match option {
+                    Some(MoveOption::Resign) => panic!("Should never happen: no make move should be issued if you resign."),
+                    Some(MoveOption::Draw) => draw = true,
+                    _ => ()
+                };
 
                 // if the move is valid
                 if game_chess_move.is_ok() {
@@ -237,16 +245,10 @@ pub(crate) async fn handle_current_game_state(
     match game_state {
         None => {
             info!("No last move supplied: either first move, or wrong move input.");
-            let mut draw = false;
             // wait for a bit before grabbing stdin, to let all stdout msg appear
-            sleep(Duration::from_secs(1)).await;
-            let mut chess_move = ask_for_move();
-            if chess_move.ends_with("DRAW") {
-                println!("Will ask for draw.");
-                draw = true;
-                chess_move = chess_move.replace("DRAW", "");
-            }
-            tx.send(PlayCommand::MakeMove { chess_move, draw }).await.unwrap();
+            sleep(Duration::from_millis(100)).await;
+            let (chess_move, option) = ask_for_move();
+            tx.send(PlayCommand::MakeMove { chess_move, option }).await.unwrap();
         }
         Some(game_state) => {
             // we only receive game states when it is our turn (i.e. event made by opponent)
@@ -268,28 +270,25 @@ pub(crate) async fn handle_current_game_state(
                 let opponent_move = PlayCommand::OpponentMove {
                     chess_move: ChessMove::new(source_sq, dest_sq, None),
                 };
-                tx.send(opponent_move).await.unwrap();
+                match tx.send(opponent_move).await {
+                    Ok(_) => (),
+                    Err(e) => panic!("Error while sending opponent move: {e}")
+                };
 
                 // now that we have the opponent's move, prompt for ours
                 // wait for a bit before grabbing stdin, to let all stdout msg appear
-                sleep(Duration::from_secs(1)).await;
-                let mut move_input = ask_for_move();
-                // handle offering draw and resigning
-                let mut draw = false;
-                if move_input.ends_with("DRAW") {
-                    println!("Will ask for draw.");
-                    draw = true;
-                    move_input = move_input.replace("DRAW", "");
-                } else if move_input == "RESIGN" {
-                    tx.send(PlayCommand::Resign).await.unwrap();
-                }
-
-                let make_move = PlayCommand::MakeMove {
-                    chess_move: move_input,
-                    draw: draw,
+                sleep(Duration::from_millis(100)).await;
+                let (chess_move, option) = ask_for_move();
+                match option {
+                    Some(MoveOption::Resign) => tx.send(PlayCommand::Resign).await.unwrap(),
+                    _ => {
+                        let make_move = PlayCommand::MakeMove {
+                            chess_move,
+                            option,
+                        };
+                        tx.send(make_move).await.unwrap();
+                    }
                 };
-                tx.send(make_move).await.unwrap();
-
             } else {
                 panic!("Should never happen: can't extract move from GameState.\nMoves: {}", game_state.moves);
             }

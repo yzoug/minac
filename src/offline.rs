@@ -11,7 +11,7 @@ pub(crate) fn offline_game() {
 
         println!("{:?} to move. Enter the SAN move (ex: Nf3):", game.side_to_move());
 
-        let next_move_str = ask_for_move();
+        let (next_move_str, _) = ask_for_move();
 
         // convert the SAN to a valid move
         // will repeat the loop if the move is not valid

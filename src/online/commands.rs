@@ -14,11 +14,16 @@ pub(crate) enum Command {
 pub(crate) enum PlayCommand {
     MakeMove {
         chess_move: String,
-        draw: bool,
+        option: Option<MoveOption>,
     },
     OpponentMove {
         chess_move: chess::ChessMove,
     },
     Resign,
     OpponentGone,
+}
+
+pub(crate) enum MoveOption {
+    Draw,
+    Resign,
 }
