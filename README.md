@@ -11,10 +11,12 @@ Currently, the `minac` binary waits for input from `stdin`:
 * for wrong move, refuses the input, asks to do another one
 * when checkmate is on the board, displays the full game as PGN.
 
-To compile it locally, you need my fork of the `chess` crate:
+To compile it locally, you need [my fork of the `chess` crate](https://github.com/yzoug/chess):
 
-* This [PR adds support for PGN](https://github.com/jordanbray/chess/pull/71).
-* Checkout the branch and put the repo as `../chess-yzoug-fork`: see `Cargo.toml`.
+* This [PR adds support for PGN](https://github.com/jordanbray/chess/pull/71), only change with the original crate.
+* Checkout the branch and put the repo in `../chess-yzoug-fork`: see `Cargo.toml`.
+
+Same with [my fork of the lichess-api crate](https://github.com/yzoug/lichess-api). Both of these projects seem dead.
 
 To use the online mode, a Lichess token with the `challenge:read/write` and `board:play` permissions is needed: write this token in the `token.secret` file at the root of the project, before running `cargo run`.
 
@@ -26,7 +28,7 @@ A 3D printed chess clock that makes it easy to play on a physical board connecte
 
 The final object will probably be:
 
-* A Raspberry Pi Zero
+* A Raspberry Pi
 * A speaker
 * A 3D printed casing
 * Small LCD screen
@@ -68,8 +70,11 @@ Feel free to send your enhancements and patches as PRs, or open issues.
 
 Currently working on:
 
-* Small analysis (what the lichess API sends) at end of game
-* Compiling for my Raspberry Pi Zero: the target is either arm-unknown-linux-gnueabihf or arm-unknown-linux-gnueabi
+* The game stream is sometimes closed for no reason (either by Lichess, but this doesn't happen with curl, or most likely by my Rust implem and the lichess-api crate). This makes using the program complicated. Main focus is to find the root cause of this and fix it.
+
+On the hardware side:
+
+* Compiling for Raspberry Pi: the target is either arm-unknown-linux-gnueabihf or arm-unknown-linux-gnueabi
 * the embedded hello world: blink a LED with Rust
 * Display the voltage received by a GPIO pin
 
