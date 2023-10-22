@@ -1,16 +1,26 @@
 use std::io::{stdin,stdout};
 use std::io::Write;
+use crate::online::commands::MoveOption;
 
-pub(crate) fn ask_for_move() -> String {
+pub(crate) fn ask_for_move() -> (String, Option<MoveOption>) {
     println!("Your turn. Enter the SAN move. Example: Nf3");
     print!(">>> ");
     let _ = stdout().flush();
 
-    let mut next_move = String::new();
-    stdin().read_line(&mut next_move)
+    let mut line_parsed = String::new();
+    stdin().read_line(&mut line_parsed)
         .expect("IO Eroor: failed to read line");
 
-    next_move.trim().to_string()
+    let command = line_parsed.trim();
+    let mut option = None;
+
+    if command.ends_with("DRAW") {
+        option = Some(MoveOption::Draw);
+    } else if command == "RESIGN" {
+        option = Some(MoveOption::Resign);
+    }
+
+    (command.replace("DRAW", "").to_string(), option)
 }
 
 pub(crate) fn get_game_mode() -> u8 {
