@@ -16,7 +16,7 @@ To compile it locally, you need [my fork of the `chess` crate](https://github.co
 * This [PR adds support for PGN](https://github.com/jordanbray/chess/pull/71), only change with the original crate.
 * Checkout the branch and put the repo in `../chess-yzoug-fork`: see `Cargo.toml`.
 
-Same with [my fork of the lichess-api crate](https://github.com/yzoug/lichess-api). Both of these projects seem dead.
+Same with [my fork of the lichess-api crate](https://github.com/yzoug/lichess-api).
 
 To use the online mode, a Lichess token with the `challenge:read/write` and `board:play` permissions is needed: write this token in the `token.secret` file at the root of the project, before running `cargo run`.
 
@@ -70,7 +70,7 @@ Feel free to send your enhancements and patches as PRs, or open issues.
 
 Currently working on:
 
-* The game stream is sometimes closed for no reason (either by Lichess, but this doesn't happen with curl, or most likely by my Rust implem and the lichess-api crate). This makes using the program complicated. Main focus is to find the root cause of this and fix it.
+* Stockfish integration
 
 On the hardware side:
 
