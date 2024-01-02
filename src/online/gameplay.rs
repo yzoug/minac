@@ -28,7 +28,7 @@ pub(crate) async fn online_game() -> Result<()> {
         .expect("Can't read token.secret file: your Lichess token is needed.");
 
     // lichess api and http client creation
-    let client = ClientBuilder::new().build().unwrap();
+    let client = ClientBuilder::new().pool_max_idle_per_host(0).build().unwrap();
     let auth_header = String::from(token).trim().to_string();
     let api = LichessApi::new(client, Some(auth_header));
 
