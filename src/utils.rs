@@ -1,5 +1,7 @@
 use std::io::{stdin,stdout};
 use std::io::Write;
+use chess::Color;
+
 use crate::online::commands::MoveOption;
 
 pub(crate) fn ask_for_move() -> (String, Option<MoveOption>) {
@@ -21,6 +23,34 @@ pub(crate) fn ask_for_move() -> (String, Option<MoveOption>) {
     }
 
     (command.replace("DRAW", "").to_string(), option)
+}
+
+pub(crate) fn ask_for_side() -> Color {
+    let returned_color;
+
+    // keep asking if the input is wrong
+    loop {
+        println!("Choose which side you want to play: W for white, B for black.");
+        print!(">>> ");
+        let _ = stdout().flush();
+
+        let mut line_parsed = String::new();
+        stdin().read_line(&mut line_parsed)
+            .expect("IO Eroor: failed to read line");
+
+        let command = line_parsed.trim();
+
+        match command {
+            "W" => returned_color = Color::White,
+            "B" => returned_color = Color::Black,
+            _ => {
+                println!("Wrong input, try again.");
+                continue
+            }
+        };
+        break;
+    }
+    returned_color
 }
 
 pub(crate) fn get_game_mode() -> u8 {
