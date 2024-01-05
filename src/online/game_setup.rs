@@ -10,7 +10,7 @@ use lichess_api::client::LichessApi;
 use lichess_api::model::board::stream::events;
 use lichess_api::error::Result;
 
-pub(crate) async fn setup_bot_game(tx: mpsc::Sender<Command>) {
+pub(crate) async fn setup_bot_game(tx: mpsc::Sender<GameCommand>) {
     // sleep for a sec, to be sure that the event stream is opened before sending the challenge
     sleep(Duration::from_secs(1)).await;
 
@@ -29,7 +29,7 @@ pub(crate) async fn setup_bot_game(tx: mpsc::Sender<Command>) {
     };
 
     // do the POST request
-    let lichess_api_request = Command::CreateBotGame {
+    let lichess_api_request = GameCommand::CreateBotGame {
         bot_game: challenges::ai::PostRequest::new(ai_challenge),
     };
     match tx.send(lichess_api_request).await {
@@ -39,7 +39,7 @@ pub(crate) async fn setup_bot_game(tx: mpsc::Sender<Command>) {
 
 }
 
-pub(crate) async fn stream_events(api: LichessApi<Client>, tx: mpsc::Sender<Command>) -> Result<()> {
+pub(crate) async fn stream_events(api: LichessApi<Client>, tx: mpsc::Sender<GameCommand>) -> Result<()> {
     let stream_request = events::GetRequest::new();
     let mut stream = api
         .board_stream_incoming_events(stream_request).await?;
@@ -50,14 +50,14 @@ pub(crate) async fn stream_events(api: LichessApi<Client>, tx: mpsc::Sender<Comm
                 match ev {
                     events::Event::GameStart { game } => {
                         info!("Game started: {:#?}",game);
-                        let command = Command::GameStart {
+                        let command = GameCommand::GameStart {
                             game: game,
                         };
                         tx.send(command).await.unwrap();
                     },
                     events::Event::GameFinish { game } => {
                         info!("Game finished: {:#?}",game);
-                        tx.send(Command::GameOver).await.unwrap();
+                        tx.send(GameCommand::GameOver).await.unwrap();
                         break;
                     }
                     _ => debug!("Unhandled event type"),

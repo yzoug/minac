@@ -44,16 +44,16 @@ pub(crate) async fn online_game() -> Result<()> {
 
     while let Some(cmd) = rx.recv().await {
         match cmd {
-            Command::CreateBotGame { bot_game } => {
+            GameCommand::CreateBotGame { bot_game } => {
                 api.challenge_ai(bot_game).await?;
             },
-            Command::GameStart { game } => {
+            GameCommand::GameStart { game } => {
                 if currently_playing.is_some() {
                     currently_playing.unwrap().abort();
                 }
                 currently_playing = Some(spawn(play(api.clone(), game)));
             },
-            Command::GameOver => {
+            GameCommand::GameOver => {
                 println!("<<< Game over! >>>\n");
                 if currently_playing.is_some() {
                     currently_playing.unwrap().abort();

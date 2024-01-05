@@ -1,7 +1,7 @@
 use lichess_api::model::challenges;
 use lichess_api::model::board::stream::events::GameEventInfo;
 
-pub(crate) enum Command {
+pub(crate) enum GameCommand {
     CreateBotGame {
         bot_game: challenges::ai::PostRequest,
     },
