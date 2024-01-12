@@ -59,7 +59,10 @@ pub(crate) fn get_game_mode() -> u8 {
 -----------------------
 All moves must be in SAN (Standard Algebraic Notation).
 
-Choose either offline (0) or online (1) game:
+Choose either:
+* [0] offline, 2 players
+* [1] offline against stockfish
+* [2] online
 ");
     print!(">>> ");
     let _ = stdout().flush();
@@ -69,4 +72,5 @@ Choose either offline (0) or online (1) game:
         .expect("IO Eroor: failed to read line.");
 
     choice.trim().parse().expect("Please type a number.")
+
 }

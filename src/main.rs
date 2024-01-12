@@ -6,6 +6,7 @@ extern crate log;
 mod offline;
 mod online;
 mod utils;
+mod stockfish;
 
 use crate::utils::*;
 
@@ -24,8 +25,10 @@ async fn main() -> Result<()> {
     loop {
         let mode = get_game_mode();
         if mode == 0 {
-            offline::offline_game();
+            offline::offline_game_2_players();
         } else if mode == 1 {
+            offline::offline_game_stockfish().await;
+        } else if mode == 2 {
             online::gameplay::online_game().await?;
         } else {
             println!("Option not supported.");

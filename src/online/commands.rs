@@ -27,3 +27,11 @@ pub(crate) enum MoveOption {
     Draw,
     Resign,
 }
+
+pub(crate) enum StockfishMode {
+    Offline {
+        player_side: chess::Color,
+        level: u8,
+    },
+    Analyze,
+}
