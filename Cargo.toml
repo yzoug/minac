@@ -6,9 +6,10 @@ edition = "2021"
 
 [dependencies]
 chess = { path = "../chess-yzoug-fork" }
-lichess-api = { path = "../lichess-api-yzoug-fork" }
+lichess-api = { path = "../lichess-api" }
 tokio = { version = "1.32.0", features = ["full"] }
 futures = { version = "0.3.28" }
 reqwest = { version = "0.11.13", features = ["json", "stream"]}
 log = { version = "0.4.0" }
 env_logger = { version = "0.9.0" }
+vampirc-uci = { path = "../vampirc-uci", features = ["chess"] }

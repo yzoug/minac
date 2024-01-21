@@ -1,5 +1,6 @@
 extern crate chess;
 extern crate lichess_api;
+extern crate vampirc_uci;
 #[macro_use]
 extern crate log;
 
