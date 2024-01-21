@@ -1,5 +1,5 @@
 use chess::{ChessMove, Game};
-use crate::online::commands::StockfishMode;
+use crate::online::commands::{StockfishInput, StockfishOutput};
 use crate::utils::{ask_for_move, ask_for_side};
 use crate::stockfish::{launch_stockfish, send_move_to_stockfish, receive_stockfish_best_move};
 

@@ -28,10 +28,22 @@ pub(crate) enum MoveOption {
     Resign,
 }
 
-pub(crate) enum StockfishMode {
-    Offline {
-        player_side: chess::Color,
-        level: u8,
+pub(crate) enum StockfishOutput {
+    StockfishEval {
+        score: i32,
     },
-    Analyze,
+    StockfishBestMove {
+        chess_move: chess::ChessMove,
+    },
+}
+
+pub(crate) enum StockfishInput {
+    PlayerMove {
+        chess_move: chess::ChessMove,
+        fen: String,
+    },
+    Configure {
+        level: i64,
+        depth: i64,
+    },
 }

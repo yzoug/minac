@@ -6,13 +6,11 @@ use tokio::sync::mpsc;
 use tokio::spawn;
 use chess::ChessMove;
 
-use crate::online::commands::StockfishMode;
-
 use tokio::io::AsyncReadExt;
+use crate::online::commands::{StockfishInput, StockfishOutput};
 
 const DEPTH: u32 = 5;
-
-pub(crate) async fn launch_stockfish(mode: StockfishMode) -> Child {
+pub(crate) async fn launch_stockfish() -> Child {
     let stockfish = Command::new("../stockfish16/stockfish-ubuntu-x86-64")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
