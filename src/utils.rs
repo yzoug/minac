@@ -1,5 +1,7 @@
-use std::io::{stdin,stdout};
+use chess::Color;
 use std::io::Write;
+use std::io::{stdin, stdout};
+
 use crate::online::commands::MoveOption;
 
 pub(crate) fn ask_for_move() -> (String, Option<MoveOption>) {
@@ -8,7 +10,8 @@ pub(crate) fn ask_for_move() -> (String, Option<MoveOption>) {
     let _ = stdout().flush();
 
     let mut line_parsed = String::new();
-    stdin().read_line(&mut line_parsed)
+    stdin()
+        .read_line(&mut line_parsed)
         .expect("IO Eroor: failed to read line");
 
     let command = line_parsed.trim();
@@ -23,19 +26,53 @@ pub(crate) fn ask_for_move() -> (String, Option<MoveOption>) {
     (command.replace("DRAW", "").to_string(), option)
 }
 
-pub(crate) fn get_game_mode() -> u8 {
+pub(crate) fn ask_for_side() -> Color {
+    let returned_color;
 
-    println!("minac - minac Is Not A Chessboard
+    // keep asking if the input is wrong
+    loop {
+        println!("Choose which side you want to play: W for white, B for black.");
+        print!(">>> ");
+        let _ = stdout().flush();
+
+        let mut line_parsed = String::new();
+        stdin()
+            .read_line(&mut line_parsed)
+            .expect("IO Eroor: failed to read line");
+
+        let command = line_parsed.trim();
+
+        match command {
+            "W" => returned_color = Color::White,
+            "B" => returned_color = Color::Black,
+            _ => {
+                println!("Wrong input, try again.");
+                continue;
+            }
+        };
+        break;
+    }
+    returned_color
+}
+
+pub(crate) fn get_game_mode() -> u8 {
+    println!(
+        "minac - minac Is Not A Chessboard
 -----------------------
 All moves must be in SAN (Standard Algebraic Notation).
 
-Choose either offline (0) or online (1) game:
-");
+Choose either:
+* [0] offline, 2 players
+* [1] offline against stockfish
+* [2] online
+"
+    );
     print!(">>> ");
     let _ = stdout().flush();
 
     let mut choice = String::new();
-    stdin().read_line(&mut choice)
+    stdin()
+        .read_line(&mut choice)
         .expect("IO Eroor: failed to read line.");
 
     choice.trim().parse().expect("Please type a number.")
