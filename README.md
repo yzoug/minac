@@ -70,7 +70,8 @@ Feel free to send your enhancements and patches as PRs, or open issues.
 
 Currently working on:
 
-* Stockfish integration
+* Stockfish integration: initial version is merged, we know need position evaluation on an online game when it is over move by move, to identify errors/blunders and output them after the game.
+* Lichess studies API: goal is to implement it for the [lichess\_api crate](https://github.com/ion232/lichess-api), then plug it into this project to save a game played as a Lichess study.
 
 On the hardware side:
 
