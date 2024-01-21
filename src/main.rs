@@ -6,8 +6,8 @@ extern crate log;
 
 mod offline;
 mod online;
-mod utils;
 mod stockfish;
+mod utils;
 
 use crate::utils::*;
 
@@ -17,7 +17,6 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[tokio::main]
 async fn main() -> Result<()> {
-
     env_logger::init();
 
     info!("minac v{}", VERSION);

@@ -1,9 +1,9 @@
-use chess::{ChessMove, Game};
 use crate::online::commands::{StockfishInput, StockfishOutput};
+use crate::stockfish::{launch_stockfish, receive_stockfish_best_move, send_move_to_stockfish};
 use crate::utils::{ask_for_move, ask_for_side};
-use crate::stockfish::{launch_stockfish, send_move_to_stockfish, receive_stockfish_best_move};
-use tokio::sync::mpsc;
+use chess::{ChessMove, Game};
 use tokio::spawn;
+use tokio::sync::mpsc;
 
 const DEPTH: i64 = 5;
 const LEVEL: i64 = 1;
@@ -23,8 +23,8 @@ pub(crate) fn offline_game_2_players() {
             Some(_) => {
                 println!("Move option specified, ending game.");
                 break;
-            },
-            _ => ()
+            }
+            _ => (),
         };
 
         // convert the SAN to a valid move
@@ -34,7 +34,7 @@ pub(crate) fn offline_game_2_players() {
             Err(e) => {
                 println!("Problem with the chess move, try again. Error: {}", e);
                 continue;
-            },
+            }
         };
 
         // make the move
@@ -54,8 +54,14 @@ pub(crate) async fn offline_game_stockfish() {
     let mut stockfish_child = launch_stockfish().await;
 
     // take the stdin and stdout of the stockfish child process
-    let stockfish_in = stockfish_child.stdin.take().expect("Stockfish child has no stdin handle");
-    let stockfish_out = stockfish_child.stdout.take().expect("Stockfish child has no stdin handle");
+    let stockfish_in = stockfish_child
+        .stdin
+        .take()
+        .expect("Stockfish child has no stdin handle");
+    let stockfish_out = stockfish_child
+        .stdout
+        .take()
+        .expect("Stockfish child has no stdin handle");
 
     // channels for stockfish in/out
     let (tx_in, rx_in) = mpsc::channel(10);
@@ -66,13 +72,20 @@ pub(crate) async fn offline_game_stockfish() {
     spawn(receive_stockfish_best_move(stockfish_out, tx_out));
 
     // start by configuring the level and depth of the engine
-    let stockfish_config = StockfishInput::Configure { level: LEVEL, depth: DEPTH };
+    let stockfish_config = StockfishInput::Configure {
+        level: LEVEL,
+        depth: DEPTH,
+    };
     tx_in.send(stockfish_config).await.unwrap();
 
     // while the game is still ongoing
     while game.result().is_none() {
         let current_board = game.current_position();
-        println!("Current FEN: {}. {:?} to move.", current_board, game.side_to_move());
+        println!(
+            "Current FEN: {}. {:?} to move.",
+            current_board,
+            game.side_to_move()
+        );
 
         if chosen_side == game.side_to_move() {
             // our turn
@@ -81,8 +94,8 @@ pub(crate) async fn offline_game_stockfish() {
                 Some(_) => {
                     println!("Move option specified, ending game.");
                     break;
-                },
-                _ => ()
+                }
+                _ => (),
             };
 
             // convert the SAN to a valid move
@@ -93,7 +106,7 @@ pub(crate) async fn offline_game_stockfish() {
                     error!("Can't parse move: {e}");
                     println!("Problem with the chess move, try again.");
                     continue;
-                },
+                }
             };
 
             // make the move
@@ -102,27 +115,29 @@ pub(crate) async fn offline_game_stockfish() {
             // send the move to stockfish
             let next_move_stockfish = StockfishInput::PlayerMove {
                 chess_move: next_move,
-                fen: game.current_position().to_string()
+                fen: game.current_position().to_string(),
             };
             tx_in.send(next_move_stockfish).await.unwrap();
-
         } else {
             // stockfish's turn
             // wait for a move message from stockfish and play it
             match rx_out.recv().await {
                 Some(StockfishOutput::StockfishBestMove { chess_move }) => {
-                    debug!("Received UCI move from stockfish {}{}, making it in our Game copy", chess_move.get_source(), chess_move.get_dest());
+                    debug!(
+                        "Received UCI move from stockfish {}{}, making it in our Game copy",
+                        chess_move.get_source(),
+                        chess_move.get_dest()
+                    );
                     game.make_move(chess_move);
-                },
+                }
                 None => {
                     error!("Can't get stockfish output (tx_out dropped), aborting game.");
                     break;
-                },
+                }
                 _ => {}
             };
         }
     }
 
     println!("The game is over. Complete PGN for analysis: {}", game);
-
 }

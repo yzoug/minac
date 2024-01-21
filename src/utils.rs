@@ -1,6 +1,6 @@
-use std::io::{stdin,stdout};
-use std::io::Write;
 use chess::Color;
+use std::io::Write;
+use std::io::{stdin, stdout};
 
 use crate::online::commands::MoveOption;
 
@@ -10,7 +10,8 @@ pub(crate) fn ask_for_move() -> (String, Option<MoveOption>) {
     let _ = stdout().flush();
 
     let mut line_parsed = String::new();
-    stdin().read_line(&mut line_parsed)
+    stdin()
+        .read_line(&mut line_parsed)
         .expect("IO Eroor: failed to read line");
 
     let command = line_parsed.trim();
@@ -35,7 +36,8 @@ pub(crate) fn ask_for_side() -> Color {
         let _ = stdout().flush();
 
         let mut line_parsed = String::new();
-        stdin().read_line(&mut line_parsed)
+        stdin()
+            .read_line(&mut line_parsed)
             .expect("IO Eroor: failed to read line");
 
         let command = line_parsed.trim();
@@ -45,7 +47,7 @@ pub(crate) fn ask_for_side() -> Color {
             "B" => returned_color = Color::Black,
             _ => {
                 println!("Wrong input, try again.");
-                continue
+                continue;
             }
         };
         break;
@@ -54,8 +56,8 @@ pub(crate) fn ask_for_side() -> Color {
 }
 
 pub(crate) fn get_game_mode() -> u8 {
-
-    println!("minac - minac Is Not A Chessboard
+    println!(
+        "minac - minac Is Not A Chessboard
 -----------------------
 All moves must be in SAN (Standard Algebraic Notation).
 
@@ -63,14 +65,15 @@ Choose either:
 * [0] offline, 2 players
 * [1] offline against stockfish
 * [2] online
-");
+"
+    );
     print!(">>> ");
     let _ = stdout().flush();
 
     let mut choice = String::new();
-    stdin().read_line(&mut choice)
+    stdin()
+        .read_line(&mut choice)
         .expect("IO Eroor: failed to read line.");
 
     choice.trim().parse().expect("Please type a number.")
-
 }
