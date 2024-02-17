@@ -70,6 +70,27 @@ pub(crate) async fn online_game() -> Result<()> {
     Ok(())
 }
 
+pub(crate) async fn send_pgn_to_study(
+    api: LichessApi<Client>,
+    pgn: String,
+) -> Result<StudyImportPgnChapters> {
+    // TODO: study id + the token should be in a config file for the project instead of files/hardcoded
+    let epoch = std::time::SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let request = studies::import_pgn_into_study::PostRequest::new(
+        "Gz5dfSNQ".to_string(),
+        ImportPgnBody {
+            name: format!("Minac DEV {}", epoch),
+            pgn: pgn,
+            variant: None,
+            orientation: None,
+        },
+    );
+    api.import_pgn_into_study(request).await
+}
+
 pub(crate) async fn stream_current_game(
     api: LichessApi<Client>,
     tx: mpsc::Sender<PlayCommand>,
