@@ -6,19 +6,26 @@ A text-based middleware to Lichess's board API, written in Rust.
 
 Currently, the `minac` binary waits for input from `stdin`:
 
-* white makes first move as SAN (Standard Algebraic Notation)
+* moves are inputted as SAN (Standard Algebraic Notation). E.g. `d4`, `Nf4`, `Qxf7`...
 * chess game status is recorded using the `chess` crate
-* for wrong move, refuses the input, asks to do another one
-* when checkmate is on the board, displays the full game as PGN.
+* lichess API is used via the `lichess_api` crate for online games and for saving copies of offline games into a study
 
-To compile it locally, you need [my fork of the `chess` crate](https://github.com/yzoug/chess):
+## Installation and usage
 
-* This [PR adds support for PGN](https://github.com/jordanbray/chess/pull/71), only change with the original crate.
-* Checkout the branch and put the repo in `../chess-yzoug-fork`: see `Cargo.toml`.
+To compile it locally, you need [my fork of the `chess` crate](https://github.com/yzoug/chess) and [my fork of the lichess-api crate](https://github.com/yzoug/lichess-api).
 
-Same with [my fork of the lichess-api crate](https://github.com/yzoug/lichess-api).
+Most changes are merged upstream for the Lichess API (hopefully all when I clean up [this PR](https://github.com/yzoug/lichess-api/pull/2) and submit upstream). For the `chess` crate, I need support for PGN that I added in [this PR](https://github.com/jordanbray/chess/pull/71), however it doesn't seem like this PR will be merged (has been open for literally years with no feedback).
 
-To use the online mode, a Lichess token with the `challenge:read/write` and `board:play` permissions is needed: write this token in the `token.secret` file at the root of the project, before running `cargo run`.
+You hence need to clone both my forks and put them somewhere `minac` can find them. By default, this is next to the `minac` folder you cloned, see `Cargo.toml`.
+
+Because I need a custom `chess` crate version, you also need to clone the `vampirc-uci` crate even though I did not modify it. Clone it [from here](https://github.com/vampirc/vampirc-uci) and modify its `Cargo.toml` as follows:
+
+```diff
+-chess = { version = "3.2", optional = true }
++chess = { path = "../chess", optional = true }
+```
+
+Finally, a Lichess token with the `challenge:read/write`, `board:play` and `study:write` permissions is needed: get it [from here](https://lichess.org/account/oauth/token) and write it in the `token.secret` file at the root of the project, before running `cargo run`.
 
 This software is still in alpha, and I don't have experience with Rust. You've been warned ;).
 
@@ -70,8 +77,8 @@ Feel free to send your enhancements and patches as PRs, or open issues.
 
 Currently working on:
 
-* Stockfish integration: initial version is merged, we know need position evaluation on an online game when it is over move by move, to identify errors/blunders and output them after the game.
-* Lichess studies API: goal is to implement it for the [lichess\_api crate](https://github.com/ion232/lichess-api), then plug it into this project to save a game played as a Lichess study.
+* Stockfish integration: initial version is merged, we know need position evaluation on games when they are over, move by move, to identify errors/blunders and output them.
+* Lichess studies API: part of it is implemented in [this PR for my fork](https://github.com/yzoug/lichess-api/pull/2) of the [lichess\_api crate](https://github.com/ion232/lichess-api), code needs cleaning before submitting a PR upstream.
 
 On the hardware side:
 

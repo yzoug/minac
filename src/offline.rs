@@ -8,7 +8,7 @@ use tokio::sync::mpsc;
 const DEPTH: i64 = 5;
 const LEVEL: i64 = 1;
 
-pub(crate) fn offline_game_2_players() {
+pub(crate) fn offline_game_2_players() -> Game {
     let mut game = Game::new();
     println!("Offline game two players. You input all moves.");
 
@@ -41,10 +41,10 @@ pub(crate) fn offline_game_2_players() {
         game.make_move(next_move);
     }
 
-    println!("The game is over. Complete PGN for analysis: {}", game);
+    game
 }
 
-pub(crate) async fn offline_game_stockfish() {
+pub(crate) async fn offline_game_stockfish() -> Game {
     // play an offline game against stockfish
     let mut game = Game::new();
     let chosen_side = ask_for_side();
@@ -139,5 +139,5 @@ pub(crate) async fn offline_game_stockfish() {
         }
     }
 
-    println!("The game is over. Complete PGN for analysis: {}", game);
+    game
 }

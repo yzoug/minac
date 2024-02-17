@@ -1,11 +1,11 @@
 [package]
 name = "minac"
-version = "0.1.5"
+version = "0.1.6"
 authors = ["yzoug <zoug@protonmail.ch>"]
 edition = "2021"
 
 [dependencies]
-chess = { path = "../chess-yzoug-fork" }
+chess = { path = "../chess" }
 lichess-api = { path = "../lichess-api" }
 tokio = { version = "1.32.0", features = ["full"] }
 futures = { version = "0.3.28" }

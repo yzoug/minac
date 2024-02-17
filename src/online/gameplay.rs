@@ -7,34 +7,24 @@ use lichess_api::error::Result;
 use lichess_api::model::board;
 use lichess_api::model::board::stream::events;
 use lichess_api::model::board::stream::game;
+use lichess_api::model::studies;
+use lichess_api::model::studies::import_pgn_into_study::ImportPgnBody;
+use lichess_api::model::studies::import_pgn_into_study::StudyImportPgnChapters;
 use lichess_api::model::Color;
 
 use chess::{Board, ChessMove, Game};
 
 use futures::stream::StreamExt;
 use reqwest::Client;
-use reqwest::ClientBuilder;
 use tokio::spawn;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
 
-use std::fs;
 use std::str::FromStr;
+use std::time::SystemTime;
 
-pub(crate) async fn online_game() -> Result<()> {
-    // get the token, panic if you can't read it
-    let token = fs::read_to_string("./token.secret")
-        .expect("Can't read token.secret file: your Lichess token is needed.");
-
-    // lichess api and http client creation
-    let client = ClientBuilder::new()
-        .pool_max_idle_per_host(0)
-        .build()
-        .unwrap();
-    let auth_header = String::from(token).trim().to_string();
-    let api = LichessApi::new(client, Some(auth_header));
-
+pub(crate) async fn online_game(api: LichessApi<Client>) -> Result<()> {
     // mpsc channel for tasks to send commands
     let (tx, mut rx) = mpsc::channel(10);
 
@@ -68,6 +58,27 @@ pub(crate) async fn online_game() -> Result<()> {
     }
 
     Ok(())
+}
+
+pub(crate) async fn send_pgn_to_study(
+    api: LichessApi<Client>,
+    pgn: String,
+) -> Result<StudyImportPgnChapters> {
+    // TODO: study id + the token should be in a config file for the project instead of files/hardcoded
+    let epoch = std::time::SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let request = studies::import_pgn_into_study::PostRequest::new(
+        "Gz5dfSNQ".to_string(),
+        ImportPgnBody {
+            name: format!("Minac DEV {}", epoch),
+            pgn: pgn,
+            variant: None,
+            orientation: None,
+        },
+    );
+    api.import_pgn_into_study(request).await
 }
 
 pub(crate) async fn stream_current_game(
