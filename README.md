@@ -9,10 +9,11 @@ Currently, the `minac` binary waits for input from `stdin`:
 * moves are inputted as SAN (Standard Algebraic Notation). E.g. `d4`, `Nf4`, `Qxf7`...
 * chess game status is recorded using the `chess` crate
 * lichess API is used via the `lichess_api` crate for online games and for saving copies of offline games into a study
+* you can play against another human or against Stockfish via the commandline
 
 ## Installation and usage
 
-To compile it locally, you need [my fork of the `chess` crate](https://github.com/yzoug/chess) and [my fork of the lichess-api crate](https://github.com/yzoug/lichess-api).
+To compile it locally, you need [my fork of the `chess` crate](https://github.com/yzoug/chess) and [my fork of the `lichess-api` crate](https://github.com/yzoug/lichess-api).
 
 Most changes are merged upstream for the Lichess API (hopefully all when I clean up [this PR](https://github.com/yzoug/lichess-api/pull/2) and submit upstream). For the `chess` crate, I need support for PGN that I added in [this PR](https://github.com/jordanbray/chess/pull/71), however it doesn't seem like this PR will be merged (has been open for literally years with no feedback).
 
@@ -77,18 +78,18 @@ Feel free to send your enhancements and patches as PRs, or open issues.
 
 Currently working on:
 
-* Stockfish integration: initial version is merged, we know need position evaluation on games when they are over, move by move, to identify errors/blunders and output them.
+* Stockfish integration: initial version is merged, we know need position evaluation on games when they are over, move by move, to identify errors/blunders and output them. [This page](https://github.com/official-stockfish/Stockfish/wiki/UCI-%26-Commands) has all the info I need.
 * Lichess studies API: part of it is implemented in [this PR for my fork](https://github.com/yzoug/lichess-api/pull/2) of the [lichess\_api crate](https://github.com/ion232/lichess-api), code needs cleaning before submitting a PR upstream.
 
 On the hardware side:
 
-* Compiling for Raspberry Pi: the target is either arm-unknown-linux-gnueabihf or arm-unknown-linux-gnueabi
-* the embedded hello world: blink a LED with Rust
-* Display the voltage received by a GPIO pin
+* Compiling for Raspberry Pi 3B+, same steps as described above: everything works, tested on Raspberry Pi OS Lite 64bit (i.e. ARMv8/AArch64). To compile, Rust (ofc) and the `openssl-dev` package need to be installed. Stockfish needs to be built from source for the ARMv8 architecture: download the sources for Stockfish 16 [from here](https://github.com/official-stockfish/Stockfish/archive/sf_16.zip) and run `make build ARCH=armv8`.
+* Interfacing with buttons. First display voltage recevied by a GPIO pin: I'll need a basic circuit with a bunch of buttons and a voltage divider to differenciate between the buttons pushed.
+* For the sake of simplicity and since Stockfish needs some computing power, this project will probably not run on a weaker controller than Raspberry Pis. I'll probably use directly the [`rppal`](https://github.com/golemparts/rppal) crate, instead of going the `embedded-hal` route.
 
 Starting to thinker about:
 
-* 3D case design with Blender
+* 3D case design with Blender: something like [this](https://www.thingiverse.com/thing:3154742) to be 3D printed.
 
 ## About me
 
