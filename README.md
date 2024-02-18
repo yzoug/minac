@@ -13,11 +13,7 @@ Currently, the `minac` binary waits for input from `stdin`:
 
 ## Installation and usage
 
-To compile it locally, you need [my fork of the `chess` crate](https://github.com/yzoug/chess) and [my fork of the `lichess-api` crate](https://github.com/yzoug/lichess-api).
-
-Most changes are merged upstream for the Lichess API (hopefully all when I clean up [this PR](https://github.com/yzoug/lichess-api/pull/2) and submit upstream). For the `chess` crate, I need support for PGN that I added in [this PR](https://github.com/jordanbray/chess/pull/71), however it doesn't seem like this PR will be merged (has been open for literally years with no feedback).
-
-You hence need to clone both my forks and put them somewhere `minac` can find them. By default, this is next to the `minac` folder you cloned, see `Cargo.toml`.
+To compile it locally, you need [my fork of the `chess` crate](https://github.com/yzoug/chess). I need support for PGN that I added in [this PR](https://github.com/jordanbray/chess/pull/71), however it doesn't seem like this PR will be merged anytime soon. Expected by `minac` next to the cloned repo, see `Cargo.toml`.
 
 Because I need a custom `chess` crate version, you also need to clone the `vampirc-uci` crate even though I did not modify it. Clone it [from here](https://github.com/vampirc/vampirc-uci) and modify its `Cargo.toml` as follows:
 
@@ -28,7 +24,7 @@ Because I need a custom `chess` crate version, you also need to clone the `vampi
 
 Finally, a Lichess token with the `challenge:read/write`, `board:play` and `study:write` permissions is needed: get it [from here](https://lichess.org/account/oauth/token) and write it in the `token.secret` file at the root of the project, before running `cargo run`.
 
-This software is still in alpha, and I don't have experience with Rust. You've been warned ;).
+This software is still in alpha, and I don't much have experience with Rust. You've been warned ;).
 
 ## What `minac` wants to be
 
@@ -99,5 +95,5 @@ Mastodon: @zoug@infosec.exchange
 
 Github: yzoug
 
-https://zoug.top
+https://zoug.fr
 
