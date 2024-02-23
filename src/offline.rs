@@ -44,14 +44,14 @@ pub(crate) fn offline_game_2_players() -> Game {
     game
 }
 
-pub(crate) async fn offline_game_stockfish() -> Game {
+pub(crate) async fn offline_game_stockfish(stockfish_bin_path: String) -> Game {
     // play an offline game against stockfish
     let mut game = Game::new();
     let chosen_side = ask_for_side();
     debug!("Choosing side {:?}", chosen_side);
 
     // launch stockfish in a seperate thread
-    let mut stockfish_child = launch_stockfish().await;
+    let mut stockfish_child = launch_stockfish(stockfish_bin_path).await;
 
     // take the stdin and stdout of the stockfish child process
     let stockfish_in = stockfish_child

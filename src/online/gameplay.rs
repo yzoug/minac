@@ -1,7 +1,6 @@
 use crate::online::commands::*;
 use crate::online::game_setup::*;
 use crate::utils::ask_for_move;
-
 use lichess_api::client::LichessApi;
 use lichess_api::error::Result;
 use lichess_api::model::board;
@@ -63,14 +62,16 @@ pub(crate) async fn online_game(api: LichessApi<Client>) -> Result<()> {
 pub(crate) async fn send_pgn_to_study(
     api: LichessApi<Client>,
     pgn: String,
+    study_id: String,
 ) -> Result<StudyImportPgnChapters> {
-    // TODO: study id + the token should be in a config file for the project instead of files/hardcoded
+    // the epoch is used as part of the study name
     let epoch = std::time::SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
         .as_secs();
+
     let request = studies::import_pgn_into_study::PostRequest::new(
-        "Gz5dfSNQ".to_string(),
+        study_id,
         ImportPgnBody {
             name: format!("Minac DEV {}", epoch),
             pgn: pgn,
