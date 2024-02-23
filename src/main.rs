@@ -32,7 +32,9 @@ async fn main() -> Result<()> {
             .add_source(config::File::with_name("settings"))
             .build()
             .unwrap();
-        let settings: Settings = config_file.try_deserialize().unwrap();
+        let settings: Settings = config_file
+            .try_deserialize()
+            .expect("Mandatory fields are missing from 'settings.toml' configuration file");
 
         // lichess api and http client creation
         let client = ClientBuilder::new()
@@ -45,7 +47,13 @@ async fn main() -> Result<()> {
         if mode == 0 || mode == 1 {
             let game = match mode {
                 0 => offline::offline_game_2_players(),
-                1 => offline::offline_game_stockfish(settings.stockfish_bin_path).await,
+                1 => {
+                    offline::offline_game_stockfish(
+                        settings.stockfish_bin_path,
+                        settings.stockfish_level,
+                    )
+                    .await
+                }
                 _ => panic!["Math has been broken"],
             };
             println!("The game is over. Complete PGN: {}", game);

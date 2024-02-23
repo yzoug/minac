@@ -39,7 +39,8 @@ pub(crate) enum StockfishInput {
         fen: String,
     },
     Configure {
-        level: i64,
+        level: String,
         depth: i64,
+        is_white: bool,
     },
 }

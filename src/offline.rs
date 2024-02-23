@@ -1,12 +1,11 @@
 use crate::online::commands::{StockfishInput, StockfishOutput};
 use crate::stockfish::{launch_stockfish, receive_stockfish_best_move, send_move_to_stockfish};
 use crate::utils::{ask_for_move, ask_for_side};
-use chess::{ChessMove, Game};
+use chess::{ChessMove, Color, Game};
 use tokio::spawn;
 use tokio::sync::mpsc;
 
 const DEPTH: i64 = 5;
-const LEVEL: i64 = 1;
 
 pub(crate) fn offline_game_2_players() -> Game {
     let mut game = Game::new();
@@ -44,7 +43,10 @@ pub(crate) fn offline_game_2_players() -> Game {
     game
 }
 
-pub(crate) async fn offline_game_stockfish(stockfish_bin_path: String) -> Game {
+pub(crate) async fn offline_game_stockfish(
+    stockfish_bin_path: String,
+    stockfish_level: String,
+) -> Game {
     // play an offline game against stockfish
     let mut game = Game::new();
     let chosen_side = ask_for_side();
@@ -71,10 +73,11 @@ pub(crate) async fn offline_game_stockfish(stockfish_bin_path: String) -> Game {
     spawn(send_move_to_stockfish(stockfish_in, rx_in));
     spawn(receive_stockfish_best_move(stockfish_out, tx_out));
 
-    // start by configuring the level and depth of the engine
+    // start by configuring the engine
     let stockfish_config = StockfishInput::Configure {
-        level: LEVEL,
+        level: stockfish_level,
         depth: DEPTH,
+        is_white: chosen_side == Color::Black,
     };
     tx_in.send(stockfish_config).await.unwrap();
 

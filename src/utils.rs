@@ -9,6 +9,7 @@ pub struct Settings {
     pub lichess_study_id: String,
     pub lichess_token: String,
     pub stockfish_bin_path: String,
+    pub stockfish_level: String,
 }
 
 pub(crate) fn ask_for_move() -> (String, Option<MoveOption>) {
