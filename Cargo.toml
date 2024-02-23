@@ -13,3 +13,5 @@ reqwest = { version = "0.11.13", features = ["json", "stream"]}
 log = { version = "0.4.0" }
 env_logger = { version = "0.9.0" }
 vampirc-uci = { path = "../vampirc-uci", features = ["chess"] }
+config = { version = "0.14.0", features = ["toml"] }
+serde = { version = "1.0.195", features = ["derive"] }

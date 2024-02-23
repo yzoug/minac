@@ -9,8 +9,8 @@ use vampirc_uci::{
 
 use crate::online::commands::{StockfishInput, StockfishOutput};
 
-pub(crate) async fn launch_stockfish() -> Child {
-    let stockfish = Command::new("../stockfish16/stockfish-ubuntu-x86-64")
+pub(crate) async fn launch_stockfish(stockfish_bin_path: String) -> Child {
+    let stockfish = Command::new(stockfish_bin_path)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()

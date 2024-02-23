@@ -4,6 +4,13 @@ use std::io::{stdin, stdout};
 
 use crate::online::commands::MoveOption;
 
+#[derive(serde::Deserialize, Clone, Debug)]
+pub struct Settings {
+    pub lichess_study_id: String,
+    pub lichess_token: String,
+    pub stockfish_bin_path: String,
+}
+
 pub(crate) fn ask_for_move() -> (String, Option<MoveOption>) {
     println!("Your turn. Enter the SAN move. Example: Nf3");
     print!(">>> ");
