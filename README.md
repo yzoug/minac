@@ -79,12 +79,12 @@ Feel free to send your enhancements and patches as PRs, or open issues.
 Currently working on:
 
 * Stockfish integration: initial version is merged, we know need position evaluation on games when they are over, move by move, to identify errors/blunders and output them. [This page](https://github.com/official-stockfish/Stockfish/wiki/UCI-%26-Commands) has all the info I need.
-* Lichess studies API: part of it is implemented in [this PR for my fork](https://github.com/yzoug/lichess-api/pull/2) of the [lichess\_api crate](https://github.com/ion232/lichess-api), code needs cleaning before submitting a PR upstream.
+* Lichess studies API: the part I need (importing a PGN into a study) has been merged ([here](https://github.com/ion232/lichess-api/pull/53)). I've tried to implement more in [this PR for my fork](https://github.com/yzoug/lichess-api/pull/2), but probably won't finish that work.
 
 On the hardware side:
 
 * Compiling for Raspberry Pi 3B+, same steps as described above: everything works, tested on Raspberry Pi OS Lite 64bit (i.e. ARMv8/AArch64). To compile, Rust (ofc) and the `openssl-dev` package need to be installed. Stockfish needs to be built from source for the ARMv8 architecture: download the sources for Stockfish 16 [from here](https://github.com/official-stockfish/Stockfish/archive/sf_16.zip) and run `make build ARCH=armv8`.
-* Interfacing with buttons. First display voltage recevied by a GPIO pin: I'll need a basic circuit with a bunch of buttons and a voltage divider to differenciate between the buttons pushed.
+* Interfacing with buttons. What I'm thinking is a given button press goes directly to a first GPIO, my code starts counting time when the voltage is high on that pin. Each button is also relied to a second GPIO, but through condensators, different values per button. Then depending on how much milliseconds passed between the high detected on the first GPIO and the second one, I know which button is pressed. This makes it possible to have a bunch of buttons using only two pins. Maybe there are better ways? Anyway this is the only solution I could think of.
 * For the sake of simplicity and since Stockfish needs some computing power, this project will probably not run on a weaker controller than Raspberry Pis. I'll probably use directly the [`rppal`](https://github.com/golemparts/rppal) crate, instead of going the `embedded-hal` route.
 
 Starting to thinker about:
