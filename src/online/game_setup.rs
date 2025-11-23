@@ -1,9 +1,10 @@
 use crate::online::commands::*;
 
 use futures::stream::StreamExt;
+use log::{debug, error, info};
 use reqwest::Client;
 use tokio::sync::mpsc;
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
 use lichess_api::client::LichessApi;
 use lichess_api::error::Result;
@@ -48,13 +49,13 @@ pub(crate) async fn stream_events(
     while let Some(event) = stream.next().await {
         match event {
             Ok(ev) => {
-                match ev {
-                    events::Event::GameStart { game } => {
+                match ev.event {
+                    events::EventData::GameStart { game } => {
                         info!("Game started: {:#?}", game);
                         let command = GameCommand::GameStart { game: game };
                         tx.send(command).await.unwrap();
                     }
-                    events::Event::GameFinish { game } => {
+                    events::EventData::GameFinish { game } => {
                         info!("Game finished: {:#?}", game);
                         tx.send(GameCommand::GameOver).await.unwrap();
                         break;

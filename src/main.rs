@@ -1,8 +1,6 @@
 extern crate chess;
 extern crate lichess_api;
 extern crate vampirc_uci;
-#[macro_use]
-extern crate log;
 
 mod offline;
 mod online;
@@ -13,6 +11,7 @@ use crate::utils::*;
 
 use lichess_api::client::LichessApi;
 use lichess_api::error::Result;
+use log::{debug, info};
 use reqwest::ClientBuilder;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -26,8 +25,9 @@ async fn main() -> Result<()> {
     // main program loop
     loop {
         // get the lichess token, panic if you can't read it
-        let token = std::fs::read_to_string("./token.secret")
-            .expect("Can't read token.secret file: your Lichess token is needed.");
+
+        let token = std::env::var("MINAC_LICHESS_TOKEN")
+            .expect("Could not get MINAC_LICHESS_TOKEN environment variable");
 
         // lichess api and http client creation
         let client = ClientBuilder::new()
@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
             let game = match mode {
                 0 => offline::offline_game_2_players(),
                 1 => offline::offline_game_stockfish().await,
-                _ => panic!["Math has been broken"],
+                _ => panic!("Math has been broken"),
             };
             println!("The game is over. Complete PGN: {}", game);
             online::gameplay::send_pgn_to_study(api, game.to_string()).await?;
