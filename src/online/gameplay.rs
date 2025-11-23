@@ -4,22 +4,23 @@ use crate::utils::ask_for_move;
 
 use lichess_api::client::LichessApi;
 use lichess_api::error::Result;
+use lichess_api::model::Color;
 use lichess_api::model::board;
 use lichess_api::model::board::stream::events;
 use lichess_api::model::board::stream::game;
 use lichess_api::model::studies;
 use lichess_api::model::studies::import_pgn_into_study::ImportPgnBody;
 use lichess_api::model::studies::import_pgn_into_study::StudyImportPgnChapters;
-use lichess_api::model::Color;
 
 use chess::{Board, ChessMove, Game};
 
 use futures::stream::StreamExt;
+use log::{debug, error, info};
 use reqwest::Client;
 use tokio::spawn;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
 use std::str::FromStr;
 use std::time::SystemTime;
@@ -235,7 +236,7 @@ pub(crate) async fn play(
 
 pub(crate) async fn handle_current_game_state(
     tx: mpsc::Sender<PlayCommand>,
-    game_state: Option<game::GameState>,
+    game_state: Option<game::GameStateEvent>,
 ) {
     match game_state {
         None => {

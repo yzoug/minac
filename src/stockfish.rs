@@ -1,10 +1,11 @@
+use log::{debug, info, trace};
 use std::process::Stdio;
 use tokio::io::AsyncWriteExt;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 use tokio::sync::mpsc;
 use vampirc_uci::{
-    parse_with_unknown, Duration, MessageList, UciMessage, UciOptionConfig, UciTimeControl,
+    Duration, MessageList, UciMessage, UciOptionConfig, UciTimeControl, parse_with_unknown,
 };
 
 use crate::online::commands::{StockfishInput, StockfishOutput};

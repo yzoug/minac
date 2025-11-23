@@ -2,6 +2,7 @@ use crate::online::commands::{StockfishInput, StockfishOutput};
 use crate::stockfish::{launch_stockfish, receive_stockfish_best_move, send_move_to_stockfish};
 use crate::utils::{ask_for_move, ask_for_side};
 use chess::{ChessMove, Game};
+use log::{debug, error};
 use tokio::spawn;
 use tokio::sync::mpsc;
 

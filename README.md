@@ -13,11 +13,7 @@ Currently, the `minac` binary waits for input from `stdin`:
 
 ## Installation and usage
 
-To compile it locally, you need [my fork of the `chess` crate](https://github.com/yzoug/chess) and [my fork of the `lichess-api` crate](https://github.com/yzoug/lichess-api).
-
-Most changes are merged upstream for the Lichess API (hopefully all when I clean up [this PR](https://github.com/yzoug/lichess-api/pull/2) and submit upstream). For the `chess` crate, I need support for PGN that I added in [this PR](https://github.com/jordanbray/chess/pull/71), however it doesn't seem like this PR will be merged (has been open for literally years with no feedback).
-
-You hence need to clone both my forks and put them somewhere `minac` can find them. By default, this is next to the `minac` folder you cloned, see `Cargo.toml`.
+To compile it locally, you need [my fork of the `chess` crate](https://github.com/yzoug/chess).
 
 Because I need a custom `chess` crate version, you also need to clone the `vampirc-uci` crate even though I did not modify it. Clone it [from here](https://github.com/vampirc/vampirc-uci) and modify its `Cargo.toml` as follows:
 
@@ -26,9 +22,9 @@ Because I need a custom `chess` crate version, you also need to clone the `vampi
 +chess = { path = "../chess", optional = true }
 ```
 
-Finally, a Lichess token with the `challenge:read/write`, `board:play` and `study:write` permissions is needed: get it [from here](https://lichess.org/account/oauth/token) and write it in the `token.secret` file at the root of the project, before running `cargo run`.
+Finally, a Lichess token with the `challenge:read/write`, `board:play` and `study:write` permissions is needed: get it [from here](https://lichess.org/account/oauth/token) and define it in the $MINAC_LICHESS_TOKEN environment variable before running `cargo run`.
 
-This software is still in alpha, and I don't have experience with Rust. You've been warned ;).
+This software is still in alpha, and I don't much have experience with Rust. You've been warned ;).
 
 ## What `minac` wants to be
 
@@ -47,7 +43,7 @@ The final object will probably be:
     * pieces: king, queen, rook, bishop, knight
     * online mode button (lichess logo), offline mode button (stockfish logo)
 
-All the buttons, except the clock buttons, could be replaced by a touchscreen. Everything should be handled by the `minac` binary.
+All the buttons, except the clock buttons, could be replaced by a touchscreen. Adding voice control could also be possible. Everything should be handled by the `minac` binary.
 
 Wanted features:
 
@@ -84,7 +80,7 @@ Currently working on:
 On the hardware side:
 
 * Compiling for Raspberry Pi 3B+, same steps as described above: everything works, tested on Raspberry Pi OS Lite 64bit (i.e. ARMv8/AArch64). To compile, Rust (ofc) and the `openssl-dev` package need to be installed. Stockfish needs to be built from source for the ARMv8 architecture: download the sources for Stockfish 16 [from here](https://github.com/official-stockfish/Stockfish/archive/sf_16.zip) and run `make build ARCH=armv8`.
-* Interfacing with buttons. First display voltage recevied by a GPIO pin: I'll need a basic circuit with a bunch of buttons and a voltage divider to differenciate between the buttons pushed.
+* Interfacing with buttons. What I'm thinking is a given button press goes directly to a first GPIO, my code starts counting time when the voltage is high on that pin. Each button is also relied to a second GPIO, but through condensators, different values per button. Then depending on how much milliseconds passed between the high detected on the first GPIO and the second one, I know which button is pressed. This makes it possible to have a bunch of buttons using only two pins. Maybe there are better ways? Anyway this is the only solution I could think of.
 * For the sake of simplicity and since Stockfish needs some computing power, this project will probably not run on a weaker controller than Raspberry Pis. I'll probably use directly the [`rppal`](https://github.com/golemparts/rppal) crate, instead of going the `embedded-hal` route.
 
 Starting to thinker about:
@@ -99,5 +95,5 @@ Mastodon: @zoug@infosec.exchange
 
 Github: yzoug
 
-https://zoug.top
+https://zoug.fr
 

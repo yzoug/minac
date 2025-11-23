@@ -1,15 +1,15 @@
 [package]
 name = "minac"
-version = "0.1.6"
-authors = ["yzoug <zoug@protonmail.ch>"]
-edition = "2021"
+version = "0.2.0"
+authors = ["zoug <git@zoug.fr>"]
+edition = "2024"
 
 [dependencies]
 chess = { path = "../chess" }
-lichess-api = { path = "../lichess-api" }
-tokio = { version = "1.32.0", features = ["full"] }
+lichess-api = { version = "0.7.0" }
+reqwest = { version = "0.12.7", features = ["json", "stream"] }
+tokio = { version = "1.48.0", features = ["full"] }
 futures = { version = "0.3.28" }
-reqwest = { version = "0.11.13", features = ["json", "stream"]}
-log = { version = "0.4.0" }
-env_logger = { version = "0.9.0" }
+log = { version = "0.4.28" }
+env_logger = { version = "0.11.8" }
 vampirc-uci = { path = "../vampirc-uci", features = ["chess"] }
