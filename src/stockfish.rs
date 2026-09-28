@@ -1,8 +1,7 @@
 use log::{debug, info, trace};
 use std::process::Stdio;
-use tokio::io::AsyncWriteExt;
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::{Child, ChildStdin, ChildStdout, Command};
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWrite, AsyncWriteExt, BufReader};
+use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
 use vampirc_uci::{
     Duration, MessageList, UciMessage, UciOptionConfig, UciTimeControl, parse_with_unknown,
@@ -10,8 +9,8 @@ use vampirc_uci::{
 
 use crate::online::commands::{StockfishInput, StockfishOutput};
 
-pub(crate) async fn launch_stockfish() -> Child {
-    let stockfish = Command::new("../stockfish16/stockfish-ubuntu-x86-64")
+pub(crate) async fn launch_stockfish(path: &str) -> Child {
+    let stockfish = Command::new(path)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -21,10 +20,12 @@ pub(crate) async fn launch_stockfish() -> Child {
     stockfish
 }
 
-pub(crate) async fn receive_stockfish_best_move(
-    stockfish_out: ChildStdout,
+pub(crate) async fn receive_stockfish_best_move<R>(
+    stockfish_out: R,
     tx: mpsc::Sender<StockfishOutput>,
-) {
+) where
+    R: AsyncBufRead + Unpin + Send,
+{
     // handle current stdout from stockfish to get BestMove
     debug!("ChildStdout recevied: {:?}", stockfish_out);
     let mut reader = BufReader::new(stockfish_out).lines();
@@ -46,13 +47,13 @@ pub(crate) async fn receive_stockfish_best_move(
     }
 }
 
-pub(crate) async fn send_move_to_stockfish(
-    mut stockfish_in: ChildStdin,
+pub(crate) async fn send_move_to_stockfish<W>(
+    stockfish_in: W,
     mut rx: mpsc::Receiver<StockfishInput>,
-) {
-    debug!("ChildStdin recevied: {:?}", stockfish_in);
-
-    // receive stockfish input commands
+) where
+    W: AsyncWrite + Unpin + Send,
+{
+    let mut writer = tokio::io::BufWriter::new(stockfish_in);
     while let Some(cmd) = rx.recv().await {
         // the messages vec and string we'll use to send the commands to stockfish
         let mut messages = MessageList::new();
@@ -115,11 +116,11 @@ pub(crate) async fn send_move_to_stockfish(
 
         // send the messages
         debug!("Sending these messages to Stockfish: {}", messages_str);
-        stockfish_in
-            .write(messages_str.as_bytes())
+        writer
+            .write_all(messages_str.as_bytes())
             .await
             .expect("Couldn't write to Stockfish stdin");
-        stockfish_in.flush().await.unwrap();
+        writer.flush().await.unwrap();
         trace!("Message sent, stdin flushed");
     }
 }

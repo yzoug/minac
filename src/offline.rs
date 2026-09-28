@@ -1,25 +1,24 @@
 use crate::online::commands::{StockfishInput, StockfishOutput};
 use crate::stockfish::{launch_stockfish, receive_stockfish_best_move, send_move_to_stockfish};
-use crate::utils::{ask_for_move, ask_for_side};
-use chess::{ChessMove, Game};
+use crate::utils::ask_for_move;
+use chess::{ChessMove, Color, Game};
 use log::{debug, error};
+use std::io::{BufRead, BufReader};
 use tokio::spawn;
 use tokio::sync::mpsc;
 
 const DEPTH: i64 = 5;
 const LEVEL: i64 = 1;
 
-pub(crate) fn offline_game_2_players() -> Game {
+pub(crate) fn offline_game_2_players(input: &mut dyn BufRead) -> Game {
     let mut game = Game::new();
     println!("Offline game two players. You input all moves.");
 
-    // while the game is still ongoing
     while game.result().is_none() {
         let current_board = game.current_position();
         println!("Current FEN: {}", current_board);
-
         println!("{:?} to move.", game.side_to_move());
-        let (next_move_str, move_option) = ask_for_move();
+        let (next_move_str, move_option) = ask_for_move(input);
         match move_option {
             Some(_) => {
                 println!("Move option specified, ending game.");
@@ -38,48 +37,22 @@ pub(crate) fn offline_game_2_players() -> Game {
             }
         };
 
-        // make the move
         game.make_move(next_move);
     }
 
     game
 }
 
-pub(crate) async fn offline_game_stockfish() -> Game {
-    // play an offline game against stockfish
+/// Core engine game loop: player and engine alternate turns.
+/// The player's input comes through `input`; engine moves come through `rx_out`.
+pub(crate) async fn stockfish_game_loop(
+    input: &mut dyn BufRead,
+    chosen_side: Color,
+    tx_in: mpsc::Sender<StockfishInput>,
+    mut rx_out: mpsc::Receiver<StockfishOutput>,
+) -> Game {
     let mut game = Game::new();
-    let chosen_side = ask_for_side();
-    debug!("Choosing side {:?}", chosen_side);
 
-    // launch stockfish in a seperate thread
-    let mut stockfish_child = launch_stockfish().await;
-
-    // take the stdin and stdout of the stockfish child process
-    let stockfish_in = stockfish_child
-        .stdin
-        .take()
-        .expect("Stockfish child has no stdin handle");
-    let stockfish_out = stockfish_child
-        .stdout
-        .take()
-        .expect("Stockfish child has no stdin handle");
-
-    // channels for stockfish in/out
-    let (tx_in, rx_in) = mpsc::channel(10);
-    let (tx_out, mut rx_out) = mpsc::channel(40);
-
-    // tasks for handling stockfish in/out
-    spawn(send_move_to_stockfish(stockfish_in, rx_in));
-    spawn(receive_stockfish_best_move(stockfish_out, tx_out));
-
-    // start by configuring the level and depth of the engine
-    let stockfish_config = StockfishInput::Configure {
-        level: LEVEL,
-        depth: DEPTH,
-    };
-    tx_in.send(stockfish_config).await.unwrap();
-
-    // while the game is still ongoing
     while game.result().is_none() {
         let current_board = game.current_position();
         println!(
@@ -89,8 +62,7 @@ pub(crate) async fn offline_game_stockfish() -> Game {
         );
 
         if chosen_side == game.side_to_move() {
-            // our turn
-            let (next_move_str, move_option) = ask_for_move();
+            let (next_move_str, move_option) = ask_for_move(input);
             match move_option {
                 Some(_) => {
                     println!("Move option specified, ending game.");
@@ -141,4 +113,40 @@ pub(crate) async fn offline_game_stockfish() -> Game {
     }
 
     game
+}
+
+pub(crate) async fn offline_game_stockfish() -> Game {
+    use crate::utils::ask_for_side;
+
+    let mut stdin_reader = BufReader::new(std::io::stdin());
+    let chosen_side = ask_for_side(&mut stdin_reader);
+    debug!("Choosing side {:?}", chosen_side);
+
+    let mut stockfish_child = launch_stockfish("../stockfish16/stockfish-ubuntu-x86-64").await;
+
+    let stockfish_in = stockfish_child
+        .stdin
+        .take()
+        .expect("Stockfish child has no stdin handle");
+    let stockfish_out = stockfish_child
+        .stdout
+        .take()
+        .expect("Stockfish child has no stdout handle");
+
+    let (tx_in, rx_in) = mpsc::channel(10);
+    let (tx_out, rx_out) = mpsc::channel(40);
+
+    spawn(send_move_to_stockfish(stockfish_in, rx_in));
+    spawn(receive_stockfish_best_move(
+        tokio::io::BufReader::new(stockfish_out),
+        tx_out,
+    ));
+
+    let stockfish_config = StockfishInput::Configure {
+        level: LEVEL,
+        depth: DEPTH,
+    };
+    tx_in.send(stockfish_config).await.unwrap();
+
+    stockfish_game_loop(&mut stdin_reader, chosen_side, tx_in, rx_out).await
 }
