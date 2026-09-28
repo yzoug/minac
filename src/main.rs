@@ -13,6 +13,8 @@ use lichess_api::client::LichessApi;
 use lichess_api::error::Result;
 use log::{debug, info};
 use reqwest::ClientBuilder;
+use std::io::{BufRead, BufReader};
+use std::sync::{Arc, Mutex};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -21,6 +23,9 @@ async fn main() -> Result<()> {
     env_logger::init();
 
     info!("minac v{}", VERSION);
+
+    let stdin_reader = BufReader::new(std::io::stdin());
+    let input: Arc<Mutex<dyn BufRead + Send>> = Arc::new(Mutex::new(stdin_reader));
 
     // main program loop
     loop {
@@ -37,10 +42,10 @@ async fn main() -> Result<()> {
         let auth_header = String::from(token).trim().to_string();
         let api = LichessApi::new(client, Some(auth_header));
 
-        let mode = get_game_mode();
+        let mode = get_game_mode(&mut *input.lock().unwrap());
         if mode == 0 || mode == 1 {
             let game = match mode {
-                0 => offline::offline_game_2_players(),
+                0 => offline::offline_game_2_players(&mut *input.lock().unwrap()),
                 1 => offline::offline_game_stockfish().await,
                 _ => panic!("Math has been broken"),
             };
@@ -48,7 +53,7 @@ async fn main() -> Result<()> {
             online::gameplay::send_pgn_to_study(api, game.to_string()).await?;
             debug!("Sent the offline game as a chapter in my study");
         } else if mode == 2 {
-            online::gameplay::online_game(api).await?;
+            online::gameplay::online_game(api, input.clone()).await?;
         } else {
             println!("Option not supported.");
         }

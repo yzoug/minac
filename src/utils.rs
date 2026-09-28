@@ -1,18 +1,17 @@
 use chess::Color;
-use std::io::Write;
-use std::io::{stdin, stdout};
+use std::io::{BufRead, Write, stdout};
 
 use crate::online::commands::MoveOption;
 
-pub(crate) fn ask_for_move() -> (String, Option<MoveOption>) {
+pub(crate) fn ask_for_move(input: &mut dyn BufRead) -> (String, Option<MoveOption>) {
     println!("Your turn. Enter the SAN move. Example: Nf3");
     print!(">>> ");
     let _ = stdout().flush();
 
     let mut line_parsed = String::new();
-    stdin()
+    input
         .read_line(&mut line_parsed)
-        .expect("IO Eroor: failed to read line");
+        .expect("IO Error: failed to read line");
 
     let command = line_parsed.trim();
     let mut option = None;
@@ -26,8 +25,8 @@ pub(crate) fn ask_for_move() -> (String, Option<MoveOption>) {
     (command.replace("DRAW", "").to_string(), option)
 }
 
-pub(crate) fn ask_for_side() -> Color {
-    let returned_color;
+pub(crate) fn ask_for_side(input: &mut dyn BufRead) -> Color {
+    let mut returned_color: Color;
 
     // keep asking if the input is wrong
     loop {
@@ -36,7 +35,7 @@ pub(crate) fn ask_for_side() -> Color {
         let _ = stdout().flush();
 
         let mut line_parsed = String::new();
-        stdin()
+        input
             .read_line(&mut line_parsed)
             .expect("IO Eroor: failed to read line");
 
@@ -55,7 +54,7 @@ pub(crate) fn ask_for_side() -> Color {
     returned_color
 }
 
-pub(crate) fn get_game_mode() -> u8 {
+pub(crate) fn get_game_mode(input: &mut dyn BufRead) -> u8 {
     println!(
         "minac - minac Is Not A Chessboard
 -----------------------
@@ -71,9 +70,9 @@ Choose either:
     let _ = stdout().flush();
 
     let mut choice = String::new();
-    stdin()
+    input
         .read_line(&mut choice)
-        .expect("IO Eroor: failed to read line.");
+        .expect("IO Error: failed to read line.");
 
     choice.trim().parse().expect("Please type a number.")
 }

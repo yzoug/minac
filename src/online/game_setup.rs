@@ -1,6 +1,6 @@
 use crate::online::commands::*;
 
-use futures::stream::StreamExt;
+use futures::stream::{Stream, StreamExt};
 use log::{debug, error, info};
 use reqwest::Client;
 use tokio::sync::mpsc;
@@ -8,7 +8,7 @@ use tokio::time::{Duration, sleep};
 
 use lichess_api::client::LichessApi;
 use lichess_api::error::Result;
-use lichess_api::model::board::stream::events;
+use lichess_api::model::board::stream::events::{Event as IncomingEvent, EventData};
 use lichess_api::model::challenges;
 
 pub(crate) async fn setup_bot_game(tx: mpsc::Sender<GameCommand>) {
@@ -39,20 +39,18 @@ pub(crate) async fn setup_bot_game(tx: mpsc::Sender<GameCommand>) {
     };
 }
 
-pub(crate) async fn stream_events(
-    api: LichessApi<Client>,
-    tx: mpsc::Sender<GameCommand>,
-) -> Result<()> {
-    let stream_request = events::GetRequest::new();
-    let mut stream = api.board_stream_incoming_events(stream_request).await?;
-
+/// Handle incoming board events and translate them into GameCommands.
+pub(crate) async fn handle_incoming_events<S>(mut stream: S, tx: mpsc::Sender<GameCommand>)
+where
+    S: futures::stream::Stream<Item = lichess_api::error::Result<IncomingEvent>> + Unpin,
+{
     while let Some(event) = stream.next().await {
         match event {
             Ok(ev) => {
                 match ev.event {
-                    events::EventData::GameStart { game } => {
+                    EventData::GameStart { game } => {
                         info!("Game started: {:#?}", game);
-                        let command = GameCommand::GameStart { game: game };
+                        let command = GameCommand::GameStart { game };
                         tx.send(command).await.unwrap();
                     }
                     events::EventData::GameFinish { game } => {
@@ -66,6 +64,16 @@ pub(crate) async fn stream_events(
             Err(e) => error!("Error in event loop: {e}"),
         };
     }
+    debug!("Goodbye from handle_incoming_events");
+}
+
+pub(crate) async fn stream_events(
+    api: LichessApi<Client>,
+    tx: mpsc::Sender<GameCommand>,
+) -> Result<()> {
+    let stream_request = lichess_api::model::board::stream::events::GetRequest::new();
+    let stream = api.board_stream_incoming_events(stream_request).await?;
+    handle_incoming_events(stream, tx).await;
     debug!("Goodbye from stream_events");
     Ok(())
 }
